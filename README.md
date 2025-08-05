@@ -1,6 +1,6 @@
 
 # ASTRID
-### Adoption Signal Tracker for Real-time Data
+### Real-time Signals for Open Source AI Momentum
 
 **Astrid is a distributed backend system designed to provide a third, predictive pillar of AI adoption analysis by tracking the real-time momentum of open-source, developer-first AI tools.**
 
