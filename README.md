@@ -2,9 +2,6 @@
 # ASTRID
 ### Adoption Signal Tracker for Real-time Data
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![CI/CD](https://github.com/YOUR_USERNAME/astrid/actions/workflows/main.yml/badge.svg)](https://github.com/YOUR_USERNAME/astrid/actions/workflows/main.yml)
-
 **Astrid is a distributed backend system designed to provide a third, predictive pillar of AI adoption analysis by tracking the real-time momentum of open-source, developer-first AI tools.**
 
 ---
