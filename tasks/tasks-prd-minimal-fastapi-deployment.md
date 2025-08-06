@@ -27,11 +27,11 @@ Based on PRD: `prd-minimal-fastapi-deployment.md`
   - [x] 1.2 Create requirements.txt with fastapi and uvicorn dependencies
   - [x] 1.3 Implement main.py with FastAPI app and /health endpoint
   - [x] 1.4 Test the application locally to ensure it runs and responds correctly
-- [ ] 2.0 Implement Docker Containerization
-  - [ ] 2.1 Create Dockerfile.api with python:3.11-slim base image
-  - [ ] 2.2 Configure Docker build process for dependency installation
-  - [ ] 2.3 Set up port exposure and uvicorn command execution
-  - [ ] 2.4 Build and test Docker image locally
+- [x] 2.0 Implement Docker Containerization
+  - [x] 2.1 Create Dockerfile.api with python:3.11-slim base image
+  - [x] 2.2 Configure Docker build process for dependency installation
+  - [x] 2.3 Set up port exposure and uvicorn command execution
+  - [x] 2.4 Build and test Docker image locally
 - [ ] 3.0 Create Helm Chart Foundation
   - [ ] 3.1 Create helm/astrid directory structure
   - [ ] 3.2 Create Chart.yaml with chart metadata
