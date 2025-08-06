@@ -1,0 +1,15 @@
+apiVersion: v2
+name: astrid
+description: A Helm chart for the Astrid distributed data pipeline platform
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - astrid
+  - api
+  - fastapi
+  - data-pipeline
+home: https://github.com/akash/astrid
+maintainers:
+  - name: Astrid Team
+    email: team@astrid.dev

@@ -32,11 +32,11 @@ Based on PRD: `prd-minimal-fastapi-deployment.md`
   - [x] 2.2 Configure Docker build process for dependency installation
   - [x] 2.3 Set up port exposure and uvicorn command execution
   - [x] 2.4 Build and test Docker image locally
-- [ ] 3.0 Create Helm Chart Foundation
-  - [ ] 3.1 Create helm/astrid directory structure
-  - [ ] 3.2 Create Chart.yaml with chart metadata
-  - [ ] 3.3 Create values.yaml with image configuration
-  - [ ] 3.4 Create templates directory for Kubernetes manifests
+- [x] 3.0 Create Helm Chart Foundation
+  - [x] 3.1 Create helm/astrid directory structure
+  - [x] 3.2 Create Chart.yaml with chart metadata
+  - [x] 3.3 Create values.yaml with image configuration
+  - [x] 3.4 Create templates directory for Kubernetes manifests
 - [ ] 4.0 Configure Kubernetes Deployment Resources
   - [ ] 4.1 Create api-deployment.yaml template with Deployment resource
   - [ ] 4.2 Create api-service.yaml template with ClusterIP Service
