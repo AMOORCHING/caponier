@@ -37,11 +37,11 @@ Based on PRD: `prd-minimal-fastapi-deployment.md`
   - [x] 3.2 Create Chart.yaml with chart metadata
   - [x] 3.3 Create values.yaml with image configuration
   - [x] 3.4 Create templates directory for Kubernetes manifests
-- [ ] 4.0 Configure Kubernetes Deployment Resources
-  - [ ] 4.1 Create api-deployment.yaml template with Deployment resource
-  - [ ] 4.2 Create api-service.yaml template with ClusterIP Service
-  - [ ] 4.3 Configure image references and labels for proper pod selection
-  - [ ] 4.4 Validate Helm chart syntax and template rendering
+- [x] 4.0 Configure Kubernetes Deployment Resources
+  - [x] 4.1 Create api-deployment.yaml template with Deployment resource
+  - [x] 4.2 Create api-service.yaml template with ClusterIP Service
+  - [x] 4.3 Configure image references and labels for proper pod selection
+  - [x] 4.4 Validate Helm chart syntax and template rendering
 - [ ] 5.0 Deploy and Verify Application
   - [ ] 5.1 Build and push Docker image to DigitalOcean Container Registry
   - [ ] 5.2 Install Helm chart to Kubernetes cluster
