@@ -6,10 +6,9 @@ api:
   replicaCount: 1
   
   image:
-    repository: registry.digitalocean.com/your-registry/astrid-api
+    repository: registry.digitalocean.com/astrid-registry/astrid-api
+    tag: "v0.1.0"
     pullPolicy: IfNotPresent
-    # Overrides the image tag whose default is the chart appVersion.
-    tag: "latest"
 
   service:
     type: ClusterIP

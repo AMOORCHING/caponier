@@ -42,8 +42,8 @@ Based on PRD: `prd-minimal-fastapi-deployment.md`
   - [x] 4.2 Create api-service.yaml template with ClusterIP Service
   - [x] 4.3 Configure image references and labels for proper pod selection
   - [x] 4.4 Validate Helm chart syntax and template rendering
-- [ ] 5.0 Deploy and Verify Application
-  - [ ] 5.1 Build and push Docker image to DigitalOcean Container Registry
-  - [ ] 5.2 Install Helm chart to Kubernetes cluster
-  - [ ] 5.3 Verify pod and service creation using kubectl
-  - [ ] 5.4 Test health endpoint using port forwarding and curl
+- [x] 5.0 Deploy and Verify Application
+  - [x] 5.1 Build and push Docker image to DigitalOcean Container Registry
+  - [x] 5.2 Install Helm chart to Kubernetes cluster
+  - [x] 5.3 Verify pod and service creation using kubectl
+  - [x] 5.4 Test health endpoint using port forwarding and curl
