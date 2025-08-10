@@ -45,7 +45,7 @@ Astrid is architected as a resilient, observable, and scalable data pipeline dep
             │                       │  │  └────┬─────┘            │  │
 ┌─────────────────────────┐         │  └───────│──────────────────┘  │
 │ Managed PostgreSQL      │◀─ ─ ─ ──┼ ─ ─ ─ ─ ─│──────────────────┘  │
-│ /w TimescaleDB (Supabase)         │  └───────│──────────────────┘  │
+│ /w TimescaleDB (Neon)   |         │  └───────│──────────────────┘  │
 └─────────────────────────┘         │          │                     │
                                     │          ▼                     │
                                     │  ┌──────────────────────────┐  │
@@ -67,7 +67,7 @@ The system's metrics are scraped by a Prometheus instance and visualized in Graf
 | :------------ | :-------------------------------- | :-------------------------------------------------------------------------------------------------------------- |
 | **Orchestration** | **Kubernetes (on DigitalOcean)**  | Industry-standard orchestration to build portable, scalable, and resilient applications.                                  |
 | **Deployment**  | **Helm**                          | Manages the complexity of Kubernetes deployments, enabling reproducible, one-command application installation.        |
-| **Database**    | **Supabase (Postgres + TimescaleDB)** | A serverless, managed database simplifies operations and reduces cost. TimescaleDB provides powerful time-series analytics. |
+| **Database**    | **Neon (Postgres + TimescaleDB)** | A serverless, managed database simplifies operations and reduces cost. TimescaleDB provides powerful time-series analytics. |
 | **Messaging**   | **CloudAMQP (RabbitMQ)**          | A managed message queue to create a resilient, asynchronous pipeline, ensuring data is not lost if a worker fails. |
 | **Backend**     | **Python & FastAPI**              | High-performance async framework ideal for building robust, well-documented APIs with built-in data validation.      |
 | **Observability**| **Grafana Cloud & Prometheus**    | Production-grade, cloud-native monitoring to track both system health and the key economic indicators Fathom produces. |
