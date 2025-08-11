@@ -111,11 +111,3 @@ Caponier is built as a cloud-native, event-driven system designed for real-time 
 ## License
 
 This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
-
-## Security
-
-For security concerns, please email security@caponier.dev rather than creating public issues.
-
----
-
-**Built with ❤️ for the open source security community**
