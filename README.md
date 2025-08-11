@@ -1,82 +1,121 @@
+# Caponier
+**Real-time Security Intelligence for Open Source Software**
 
-# ASTRID
-### Real-time Signals for Open Source AI Momentum
+Caponier is a distributed platform that provides real-time security analysis and economic intelligence for open source repositories. By combining vulnerability detection, dependency risk assessment, and community-driven insights, Caponier quantifies the economic impact of security decisions in software development.
 
-**Astrid is a distributed backend system designed to provide a third, predictive pillar of AI adoption analysis by tracking the real-time momentum of open-source, developer-first AI tools.**
+## The Security Economics Problem
+
+Modern software development relies heavily on open source dependencies, but security risk assessment remains largely manual and reactive:
+
+- **Delayed vulnerability detection**: Teams discover security issues after they're already deployed.
+- **Economic blind spots**: No quantitative framework for security ROI or risk pricing exists.
+- **Fragmented intelligence**: Security data is scattered across CVE databases, GitHub issues, and vendor reports.
+- **Supply chain opacity**: There is limited visibility into transitive dependency risks.
+
+Caponier addresses these gaps by providing real-time security intelligence with economic context, helping teams make data-driven decisions about dependency selection, security investments, and risk management.
+
+## Core Features
+
+### 🔍 Real-Time Repository Analysis
+- Instant security scoring for any public GitHub repository
+- Dependency vulnerability detection with CVE correlation
+- Maintenance health assessment based on commit patterns and community activity
+- Supply chain risk mapping across dependency trees
+
+### 📊 Security Economics Intelligence
+- Economic impact modeling for security vulnerabilities
+- ROI analysis for security tooling investments
+- Risk-adjusted dependency recommendations
+- Market trends in open source security adoption
+
+### 🌐 Community-Driven Insights
+- Security engineer verification and rating system
+- Crowd-sourced dependency recommendations
+- Industry benchmarking and competitive analysis
+- Community reputation scoring for contributors
+
+### ⚡ Real-Time Monitoring
+- Live webhook processing for repository changes
+- Predictive vulnerability detection using ML models
+- Automated alerting for security score changes
+- Historical trend analysis and forecasting
+
+## System Architecture
+
+Caponier is built as a cloud-native, event-driven system designed for real-time processing and horizontal scaling:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Cloud Environment                        │
+│                                                             │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   │
+│  │   Next.js    │    │   FastAPI    │    │   ML Models  │   │
+│  │  Frontend    │◄──►│    API       │◄──►│  (Security   │   │
+│  │              │    │              │    │   Scoring)   │   │
+│  └──────────────┘    └──────────────┘    └──────────────┘   │
+│                              │                              │
+│                              ▼                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐   │
+│  │    Redis     │    │  RabbitMQ    │    │  TimescaleDB │   │
+│  │   (Cache)    │    │ (Queue/Pub)  │    │ (Time-series │   │
+│  │              │    │              │    │  Analytics)  │   │
+│  └──────────────┘    └──────────────┘    └──────────────┘   │
+│                               ▲                             │
+│                               │                             │
+│  ┌────────────────────────────┼─────────────────────────┐   │
+│  │         Processing Workers (Kubernetes)              │   │
+│  │                            │                         │   │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────┐│   │
+│  │  │ GitHub   │  │   CVE    │  │ Scoring  │  │ Alert  ││   │
+│  │  │Ingestion │  │ Monitor  │  │ Engine   │  │Service ││   │
+│  │  └──────────┘  └──────────┘  └──────────┘  └────────┘│   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                              ▲
+                              │
+    ┌──────────────┐          │         ┌──────────────┐
+    │   GitHub     │◄─────────┼────────►│External APIs │
+    │   Webhooks   │          │         │(CVE, PyPI,   │
+    │              │          │         │ HN, etc.)    │
+    └──────────────┘          │         └──────────────┘
+                              │
+    ┌──────────────┐          │
+    │  Prometheus  │◄─────────┘
+    │  & Grafana   │
+    │ (Monitoring) │
+    └──────────────┘
+```
+
+## Technology Stack
+
+| Category | Technology | Rationale |
+|----------|------------|-----------|
+| **Frontend** | Next.js + React | Server-side rendering for SEO, TypeScript support, optimal developer experience |
+| **API** | FastAPI + Python | High-performance async framework, automatic OpenAPI docs, excellent ML integration |
+| **ML/AI** | PyTorch + scikit-learn | Security scoring models, vulnerability prediction, trend analysis |
+| **Caching** | Redis | Sub-second response times for repository analysis, session management |
+| **Database** | TimescaleDB (PostgreSQL) | Time-series optimization for security metrics, powerful analytics capabilities |
+| **Queue** | RabbitMQ (CloudAMQP) | Reliable message processing, event-driven architecture, failure recovery |
+| **Orchestration** | Kubernetes + Helm | Container orchestration, auto-scaling, reproducible deployments |
+| **Monitoring** | Prometheus + Grafana | Real-time system metrics, security event tracking, SLA monitoring |
+| **CI/CD** | GitHub Actions | Automated testing, security scanning, deployment pipelines |
+
+## Getting Started
+
+### Prerequisites
+- Docker and Docker Compose
+- Kubernetes cluster (local or cloud)
+- Helm 3.0+
+- Node.js 18+ and Python 3.11+
+
+## License
+
+This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
+
+## Security
+
+For security concerns, please email security@caponier.dev rather than creating public issues.
 
 ---
 
-### A Leading Indicator for the AI Economy
-
-The modern AI landscape is measured in two primary ways:
-1.  **The Survey View:** What firms *say* they do, captured by crucial research like the U.S. Census Bureau's "[Tracking Firm Use of AI in Real Time](https://www2.census.gov/ces/wp/2024/CES-WP-24-16.pdf)" (Bonney et al., 2024).
-2.  **The Transactional View:** What firms *pay* for, measured authoritatively by the [Ramp AI Index](https://ramp.com/economics/ai-index).
-
-Both methodologies are essential, yet both acknowledge a critical blind spot: the vast, dynamic ecosystem of **free and open-source software (FOSS)**. This is where developer attention—the most valuable leading indicator in the tech economy—congregates first.
-
-**Astrid is an open-source data engine built to fill this exact gap.**
-
-By aggregating and analyzing high-signal public data from developer-native platforms like GitHub, Hacker News, and PyPI, Astrid functions as a **leading indicator engine**. It aims to quantify the ground-truth developer activity that precedes formal corporate adoption and commercial spending, providing a complementary dataset to the foundational work done by the Census Bureau and Ramp.
-
-### System Architecture
-
-Astrid is architected as a resilient, observable, and scalable data pipeline deployed on Kubernetes. The system is designed with a clear separation of concerns, using a message queue to decouple asynchronous data ingestion from processing and storage.
-
-```plaintext
-                                    ┌────────────────────────────────┐
-                                    │         Cloud Environment      │
-                                    │                                │
-┌────────────┐                      │  ┌──────────────────────────┐  │
-│ GitHub     ├─(Cron Trigger)───────┼─▶│ Kubernetes Cluster       │  │
-│ Actions    │                      │  │                          │  │
-└────────────┘                      │  │  ┌──────────┐            │  │
-                                    │  │  │  Astrid  │ (Nightly)  │  │
-                                    │  │  │ Producer │ (K8s Job)  │  │
-                                    │  │  └────┬─────┘            │  │
-                                    │  └───────│──────────────────┘  │
-                                    │          │ (Jobs pushed)       │
-                                    │          ▼                     │
-┌─────────────────────────┐         │  ┌──────────────────────────┐  │
-│ Managed RabbitMQ        │◀─ ─ ─ ──┼─▶│ Kubernetes Cluster       │  │
-│ (e.g., CloudAMQP)       │         │  │                          │  │
-└─────────────────────────┘         │  │  ┌──────────┐            │  │
-            ▲                       │  │  │  Astrid  │ (AsyncIO)  │  │
-            │ (Data ingested)       │  │  │  Workers │(Deployment)│  │
-            │                       │  │  └────┬─────┘            │  │
-┌─────────────────────────┐         │  └───────│──────────────────┘  │
-│ Managed PostgreSQL      │◀─ ─ ─ ──┼ ─ ─ ─ ─ ─│──────────────────┘  │
-│ /w TimescaleDB (Neon)   |         │  └───────│──────────────────┘  │
-└─────────────────────────┘         │          │                     │
-                                    │          ▼                     │
-                                    │  ┌──────────────────────────┐  │
-                                    │  │ Kubernetes Cluster       │  │
-                                    │  │                          │  │
-                                    │  │  ┌──────────┐            │  │
-                                    │  │  │ FastAPI  │◀──(Public) │  │
-                                    │  │  │   API    │(Deployment)│  │
-                                    │  │  │ (& /metrics)          │  │
-                                    │  │  └──────────┘            │  │
-                                    │  └──────────────────────────┘  │
-                                    └────────────────────────────────┘
-```
-The system's metrics are scraped by a Prometheus instance and visualized in Grafana Cloud.
-
-### Stack & Rationale
-
-| Category      | Technology                        | Rationale                                                                                                       |
-| :------------ | :-------------------------------- | :-------------------------------------------------------------------------------------------------------------- |
-| **Orchestration** | **Kubernetes (on DigitalOcean)**  | Industry-standard orchestration to build portable, scalable, and resilient applications.                                  |
-| **Deployment**  | **Helm**                          | Manages the complexity of Kubernetes deployments, enabling reproducible, one-command application installation.        |
-| **Database**    | **Neon (Postgres + TimescaleDB)** | A serverless, managed database simplifies operations and reduces cost. TimescaleDB provides powerful time-series analytics. |
-| **Messaging**   | **CloudAMQP (RabbitMQ)**          | A managed message queue to create a resilient, asynchronous pipeline, ensuring data is not lost if a worker fails. |
-| **Backend**     | **Python & FastAPI**              | High-performance async framework ideal for building robust, well-documented APIs with built-in data validation.      |
-| **Observability**| **Grafana Cloud & Prometheus**    | Production-grade, cloud-native monitoring to track both system health and the key economic indicators Fathom produces. |
-| **CI/CD**       | **GitHub Actions**                | Automates testing, container image builds, and deployments, ensuring a reliable and professional development workflow. |
-
-
-### Project Status
-
-**Alpha / In Development.** The core architecture is defined, and implementation of the data pipeline is underway.
-
-### 7. License
-This project is licensed under the **GNU General Public License v3.0**. See the `LICENSE` file for details.```
+**Built with ❤️ for the open source security community**
