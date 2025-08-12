@@ -1,0 +1,123 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+README.md
+LICENSE
+
+# Development files
+requirements-dev.txt
+pytest.ini
+.coverage
+.pytest_cache/
+.mypy_cache/
+.black
+.isort.cfg
+
+# Documentation
+.docs/
+docs/
+*.md
+mkdocs.yml
+
+# Testing
+tests/
+test_*.py
+*_test.py
+
+# Jupyter
+.jupyter/
+*.ipynb
+.ipynb_checkpoints/
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Task management
+.tasks/
+tasks/
+
+# Commands and scripts
+.commands/
+commands/
+scripts/
+
+# Helm charts (not needed in container)
+helm/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Environment files
+.env
+.env.*
+
+# Cache
+.cache/
+.npm/
+.yarn/
+
+# Backup files
+*.bak
+*.backup
+*.old
