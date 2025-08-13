@@ -10,6 +10,9 @@ Based on PRD: `prd-caponier-mvp.md`
 - `src/api/security/repository_analyzer.py` - Repository validation and metadata extraction service (CREATED)
 - `src/api/security/analyzer.py` - Core security analysis engine and orchestration logic
 - `src/api/security/vulnerability_scanner.py` - Vulnerability detection using NVD API integration (CREATED)
+- `src/api/security/cve_lookup.py` - Advanced CVE lookup with multi-tier caching and version matching (CREATED)
+- `src/api/security/circuit_breaker.py` - Circuit breaker pattern for external service resilience (CREATED)
+- `src/api/security/vulnerability_enrichment.py` - Advanced vulnerability data enrichment with CVSS analysis (CREATED)
 - `src/api/security/dependency_parser.py` - Package manifest file parsing for different ecosystems (UPDATED - Node.js + Python + Rust + Java + Smart Discovery)
 - `src/api/security/scoring.py` - Security scoring algorithm implementation
 - `src/api/security/github_client.py` - GitHub API client for repository access and metadata (CREATED)
@@ -53,7 +56,7 @@ Based on PRD: `prd-caponier-mvp.md`
   - [x] 1.5 Add CORS configuration for frontend integration
   - [x] 1.6 Update requirements.txt with security analysis dependencies (requests, redis, celery, websockets)
 
-- [ ] 2.0 Implement GitHub Repository Analysis and Dependency Parsing
+- [x] 2.0 Implement GitHub Repository Analysis and Dependency Parsing
   - [x] 2.1 Create GitHub API client with rate limiting and authentication handling
   - [x] 2.2 Implement repository validation and metadata extraction (last commit, contributors, issues)
   - [x] 2.3 Build dependency parser for package.json (Node.js/npm ecosystem)
@@ -63,14 +66,14 @@ Based on PRD: `prd-caponier-mvp.md`
   - [x] 2.7 Implement smart dependency file detection across repository structure
   - [x] 2.8 Add error handling for private repositories and invalid URLs
 
-- [ ] 3.0 Build Vulnerability Scanning and NVD Integration
+- [x] 3.0 Build Vulnerability Scanning and NVD Integration
   - [x] 3.1 Integrate with National Vulnerability Database (NVD) API v2.0
-  - [ ] 3.2 Implement CVE lookup by package name and version with caching
-  - [ ] 3.3 Filter vulnerabilities to Critical and High severity only
-  - [ ] 3.4 Add rate limiting and retry logic for external API calls
-  - [ ] 3.5 Map vulnerabilities to CVE identifiers with detailed descriptions
-  - [ ] 3.6 Implement circuit breaker pattern for external service resilience
-  - [ ] 3.7 Add vulnerability data enrichment with CVSS scores and impact details
+  - [x] 3.2 Implement CVE lookup by package name and version with caching
+  - [x] 3.3 Filter vulnerabilities to Critical and High severity only
+  - [x] 3.4 Add rate limiting and retry logic for external API calls
+  - [x] 3.5 Map vulnerabilities to CVE identifiers with detailed descriptions
+  - [x] 3.6 Implement circuit breaker pattern for external service resilience
+  - [x] 3.7 Add vulnerability data enrichment with CVSS scores and impact details
 
 - [ ] 4.0 Develop Security Scoring Algorithm and Reporting
   - [ ] 4.1 Implement weighted scoring: Critical vulnerabilities = 10 points, High = 5 points
