@@ -350,6 +350,56 @@ class VulnerabilityServiceError(ExternalServiceError):
                 self.http_status_code = 503  # Service Unavailable
 
 
+class CacheError(CaponierException):
+    """
+    Raised when cache operations fail
+    
+    Used for both memory and persistent cache failures.
+    """
+    
+    def __init__(self, message: str, cache_type: str = "cache", operation: str = "unknown"):
+        super().__init__(
+            message=message,
+            error_code="CACHE_ERROR",
+            details={"cache_type": cache_type, "operation": operation},
+            http_status_code=500
+        )
+
+
+class RateLimitError(ExternalServiceError):
+    """
+    Raised when external API rate limits are exceeded
+    
+    Includes retry-after information for proper backoff handling.
+    """
+    
+    def __init__(self, message: str, service: str = "External API", retry_after: Optional[int] = None):
+        super().__init__(message, service)
+        self.error_code = "RATE_LIMIT_EXCEEDED"
+        self.http_status_code = 429  # Too Many Requests
+        
+        # Always initialize retry_recommended
+        self.details["retry_recommended"] = retry_after is not None
+        
+        if retry_after:
+            self.details["retry_after_seconds"] = retry_after
+
+
+class CircuitBreakerError(ExternalServiceError):
+    """
+    Raised when circuit breaker is open or half-open limit exceeded
+    
+    Indicates that calls are being rejected to protect against cascade failures.
+    """
+    
+    def __init__(self, message: str, service: str = "External Service", circuit_state: str = "unknown"):
+        super().__init__(message, service)
+        self.error_code = "CIRCUIT_BREAKER_OPEN"
+        self.http_status_code = 503  # Service Unavailable
+        self.details["circuit_state"] = circuit_state
+        self.details["retry_recommended"] = circuit_state == "half_open"
+
+
 class GitHubAPIError(ExternalServiceError):
     """GitHub API request failed"""
     
