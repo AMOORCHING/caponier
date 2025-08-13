@@ -90,25 +90,76 @@ class RepositoryError(CaponierException):
 class RepositoryNotFoundError(RepositoryError):
     """Repository does not exist or is not accessible"""
     
-    def __init__(self, repository_url: str):
+    def __init__(self, repository_url: str, suggestion: Optional[str] = None):
+        message = f"Repository not found: {repository_url}"
+        if suggestion:
+            message += f". {suggestion}"
+        
         super().__init__(
-            message=f"Repository not found or is private: {repository_url}",
+            message=message,
             repository_url=repository_url
         )
         self.error_code = "REPOSITORY_NOT_FOUND"
         self.http_status_code = 404
+        if suggestion:
+            self.details["suggestion"] = suggestion
 
 
 class RepositoryAccessDeniedError(RepositoryError):
     """Access to repository is denied (rate limited or private)"""
     
-    def __init__(self, repository_url: str, reason: str = "Access denied"):
+    def __init__(self, repository_url: str, reason: str = "Access denied", access_type: str = "unknown"):
         super().__init__(
             message=f"Repository access denied: {reason}",
             repository_url=repository_url
         )
         self.error_code = "REPOSITORY_ACCESS_DENIED"
         self.http_status_code = 403
+        self.details["access_type"] = access_type
+
+
+class RepositoryPrivateError(RepositoryError):
+    """Repository is private and requires authentication or permissions"""
+    
+    def __init__(self, repository_url: str, has_token: bool = False):
+        if has_token:
+            message = f"Repository is private and your token does not have access: {repository_url}"
+            suggestion = "Ensure your GitHub token has access to this private repository"
+        else:
+            message = f"Repository is private and requires authentication: {repository_url}"
+            suggestion = "Provide a GitHub token with access to private repositories"
+        
+        super().__init__(
+            message=message,
+            repository_url=repository_url
+        )
+        self.error_code = "REPOSITORY_PRIVATE"
+        self.http_status_code = 403
+        self.details["has_token"] = has_token
+        self.details["suggestion"] = suggestion
+
+
+class InvalidRepositoryURLError(CaponierException):
+    """Repository URL is malformed or invalid"""
+    
+    def __init__(self, repository_url: str, reason: str, suggestion: Optional[str] = None):
+        message = f"Invalid repository URL: {reason}"
+        if suggestion:
+            message += f". {suggestion}"
+        
+        details = {
+            "repository_url": repository_url,
+            "field": "repository_url"
+        }
+        if suggestion:
+            details["suggestion"] = suggestion
+        
+        super().__init__(
+            message=message,
+            error_code="INVALID_REPOSITORY_URL",
+            details=details,
+            http_status_code=400
+        )
 
 
 class AnalysisError(CaponierException):
@@ -274,6 +325,29 @@ class ExternalServiceError(CaponierException):
             details=details,
             http_status_code=503
         )
+
+
+class VulnerabilityServiceError(ExternalServiceError):
+    """
+    Raised when vulnerability scanning services fail
+    
+    Specialized error for vulnerability databases like NVD, security scanners, etc.
+    """
+    
+    def __init__(self, message: str, service: str = "Vulnerability Service", status_code: Optional[int] = None):
+        super().__init__(message, service)
+        self.error_code = "VULNERABILITY_SERVICE_ERROR"
+        if status_code:
+            self.details["status_code"] = status_code
+            # Set appropriate HTTP status based on the service error
+            if status_code == 403:
+                self.http_status_code = 403
+            elif status_code == 404:
+                self.http_status_code = 404
+            elif status_code >= 500:
+                self.http_status_code = 502  # Bad Gateway
+            else:
+                self.http_status_code = 503  # Service Unavailable
 
 
 class GitHubAPIError(ExternalServiceError):

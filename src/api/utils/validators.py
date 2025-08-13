@@ -1,6 +1,6 @@
 import re
 import urllib.parse
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 import httpx
 import asyncio
 from fastapi import HTTPException, Request
@@ -9,12 +9,15 @@ import logging
 
 from ..models import ErrorResponse
 from .exceptions import (
-    ValidationError, 
-    RepositoryNotFoundError, 
+    ValidationError,
+    RepositoryNotFoundError,
     RepositoryAccessDeniedError,
+    RepositoryPrivateError,
+    InvalidRepositoryURLError,
     ExternalServiceError,
     GitHubAPIError
 )
+from ..security.repository_analyzer import RepositoryAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +48,47 @@ class GitHubURLValidator:
             ValidationError: If URL format is invalid
         """
         if not url or not isinstance(url, str):
-            raise ValidationError("Repository URL is required and must be a string", "repository_url", url)
+            raise InvalidRepositoryURLError(
+                str(url) if url else "None",
+                "Repository URL is required and must be a string",
+                "Provide a valid GitHub repository URL like 'https://github.com/owner/repo'"
+            )
         
         # Clean and normalize the URL
+        original_url = url
         url = url.strip().rstrip('/')
+        
+        if not url:
+            raise InvalidRepositoryURLError(
+                original_url,
+                "Repository URL cannot be empty or whitespace only",
+                "Provide a valid GitHub repository URL"
+            )
         
         # Remove common prefixes that users might include
         url = re.sub(r'^(https?://)?', '', url)
         url = re.sub(r'^www\.', '', url)
+        
+        # Check if it's a GitHub URL
+        if not url.startswith('github.com/') and not url.startswith('//github.com/'):
+            # Check if user provided a non-GitHub URL
+            if any(domain in url.lower() for domain in ['gitlab.com', 'bitbucket.org', 'sourceforge.net']):
+                domain = next(domain for domain in ['gitlab.com', 'bitbucket.org', 'sourceforge.net'] if domain in url.lower())
+                raise InvalidRepositoryURLError(
+                    original_url,
+                    f"Only GitHub repositories are supported, found {domain}",
+                    "Provide a GitHub repository URL like 'https://github.com/owner/repo'"
+                )
+            
+            # Assume it might be owner/repo format
+            if '/' in url and not any(c in url for c in ['.', ':', '@']):
+                url = f"github.com/{url}"
+            else:
+                raise InvalidRepositoryURLError(
+                    original_url,
+                    "URL does not appear to be a GitHub repository",
+                    "Provide a GitHub repository URL like 'https://github.com/owner/repo'"
+                )
         
         # Handle different input formats
         if url.startswith('github.com/'):
@@ -63,16 +99,43 @@ class GitHubURLValidator:
         # Validate owner/repo format
         parts = url.split('/')
         if len(parts) < 2:
-            raise ValidationError("Invalid repository format. Expected: owner/repository", "repository_url", url)
+            raise InvalidRepositoryURLError(
+                original_url,
+                "Invalid repository format - missing owner or repository name",
+                "Expected format: 'owner/repository' or 'https://github.com/owner/repository'"
+            )
         
         owner, repo = parts[0], parts[1]
         
+        # Check for empty owner or repo
+        if not owner.strip():
+            raise InvalidRepositoryURLError(
+                original_url,
+                "Repository owner cannot be empty",
+                "Provide both owner and repository name"
+            )
+        
+        if not repo.strip():
+            raise InvalidRepositoryURLError(
+                original_url,
+                "Repository name cannot be empty",
+                "Provide both owner and repository name"
+            )
+        
         # Additional validation for GitHub username/repo rules
         if not GitHubURLValidator._is_valid_github_username(owner):
-            raise ValidationError(f"Invalid GitHub username: {owner}", "owner", owner)
+            raise InvalidRepositoryURLError(
+                original_url,
+                f"Invalid GitHub username '{owner}' - must contain only alphanumeric characters and hyphens",
+                "GitHub usernames can only contain letters, numbers, and hyphens"
+            )
         
         if not GitHubURLValidator._is_valid_github_repo_name(repo):
-            raise ValidationError(f"Invalid GitHub repository name: {repo}", "repository_name", repo)
+            raise InvalidRepositoryURLError(
+                original_url,
+                f"Invalid GitHub repository name '{repo}' - contains invalid characters",
+                "Repository names can contain letters, numbers, hyphens, periods, and underscores"
+            )
         
         # Remove any additional path components (like /tree/main, /blob/master, etc.)
         normalized_url = f"https://github.com/{owner}/{repo}"
@@ -251,9 +314,48 @@ async def validate_repository_url(repository_url: str) -> str:
         
         return normalized_url
         
-    except (ValidationError, RepositoryNotFoundError, RepositoryAccessDeniedError, ExternalServiceError):
+    except (InvalidRepositoryURLError, RepositoryNotFoundError, RepositoryPrivateError, RepositoryAccessDeniedError, GitHubAPIError, ExternalServiceError):
         # Re-raise our custom exceptions - they will be handled by the exception handler
         raise
     except Exception as e:
         logger.error(f"Unexpected error validating repository URL {repository_url}: {str(e)}")
         raise ExternalServiceError(f"Failed to validate repository URL: {str(e)}", "validation_service")
+
+
+async def validate_and_analyze_repository(repository_url: str) -> Dict[str, Any]:
+    """
+    Comprehensive repository validation and metadata extraction
+    
+    This function performs both validation and detailed analysis of a GitHub repository,
+    including metadata extraction, commit analysis, contributor analysis, and more.
+    
+    Args:
+        repository_url: Raw repository URL from request
+        
+    Returns:
+        Complete repository analysis data
+        
+    Raises:
+        ValidationError: If URL format is invalid
+        RepositoryNotFoundError: If repository doesn't exist
+        RepositoryAccessDeniedError: If repository access is denied
+        AnalysisError: If repository analysis fails
+        ExternalServiceError: If external service calls fail
+    """
+    try:
+        # Step 1: Validate and normalize URL
+        normalized_url = await validate_repository_url(repository_url)
+        
+        # Step 2: Perform comprehensive repository analysis
+        async with RepositoryAnalyzer() as analyzer:
+            analysis_result = await analyzer.validate_and_analyze_repository(normalized_url)
+            
+        logger.info(f"Repository analysis completed for {normalized_url}")
+        return analysis_result
+        
+    except (ValidationError, RepositoryNotFoundError, RepositoryAccessDeniedError, ExternalServiceError):
+        # Re-raise our custom exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in repository analysis for {repository_url}: {str(e)}")
+        raise ExternalServiceError(f"Failed to analyze repository: {str(e)}", "repository_analyzer")

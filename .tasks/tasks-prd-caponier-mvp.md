@@ -7,25 +7,26 @@ Based on PRD: `prd-caponier-mvp.md`
 - `src/api/main.py` - Extend existing FastAPI application with security analysis endpoints and CORS configuration (UPDATED)
 - `src/api/models.py` - Pydantic models for API requests, responses, and vulnerability data structures (CREATED)
 - `src/api/security/` - Security analysis module directory
+- `src/api/security/repository_analyzer.py` - Repository validation and metadata extraction service (CREATED)
 - `src/api/security/analyzer.py` - Core security analysis engine and orchestration logic
-- `src/api/security/vulnerability_scanner.py` - Vulnerability detection using NVD API integration
-- `src/api/security/dependency_parser.py` - Package manifest file parsing for different ecosystems
+- `src/api/security/vulnerability_scanner.py` - Vulnerability detection using NVD API integration (CREATED)
+- `src/api/security/dependency_parser.py` - Package manifest file parsing for different ecosystems (UPDATED - Node.js + Python + Rust + Java + Smart Discovery)
 - `src/api/security/scoring.py` - Security scoring algorithm implementation
-- `src/api/security/github_client.py` - GitHub API client for repository access and metadata
+- `src/api/security/github_client.py` - GitHub API client for repository access and metadata (CREATED)
 - `src/api/jobs/` - Background job processing directory
 - `src/api/jobs/worker.py` - Celery/RQ worker configuration and task definitions
 - `src/api/jobs/tasks.py` - Background task implementations for analysis processing
 - `src/api/websocket/` - WebSocket handlers directory
 - `src/api/websocket/progress.py` - Real-time progress update handlers
 - `src/api/utils/` - Utility functions directory
-- `src/api/utils/validators.py` - URL validation and repository existence checking (CREATED)
+- `src/api/utils/validators.py` - URL validation and comprehensive repository analysis (UPDATED)
 - `src/api/utils/exceptions.py` - Custom exception classes for error handling (CREATED)
 - `src/frontend/` - React/Next.js frontend application directory
 - `src/frontend/components/` - React components for analysis interface
 - `src/frontend/pages/` - Next.js pages for single-page application
 - `src/frontend/hooks/` - Custom React hooks for WebSocket and API integration
 - `docker-compose.yml` - Local development environment with Redis and worker services
-- `requirements.txt` - Updated Python dependencies including security analysis libraries (UPDATED)
+- `requirements.txt` - Updated Python dependencies including security analysis libraries (UPDATED - added TOML/YAML support)
 - `requirements-dev.txt` - Development-only dependencies for testing and code quality (CREATED)
 - `.dockerignore` - Docker build optimization and security (CREATED)
 - `.env.example` - Environment configuration template (CREATED)
@@ -53,17 +54,17 @@ Based on PRD: `prd-caponier-mvp.md`
   - [x] 1.6 Update requirements.txt with security analysis dependencies (requests, redis, celery, websockets)
 
 - [ ] 2.0 Implement GitHub Repository Analysis and Dependency Parsing
-  - [ ] 2.1 Create GitHub API client with rate limiting and authentication handling
-  - [ ] 2.2 Implement repository validation and metadata extraction (last commit, contributors, issues)
-  - [ ] 2.3 Build dependency parser for package.json (Node.js/npm ecosystem)
-  - [ ] 2.4 Build dependency parser for requirements.txt (Python/pip ecosystem)
-  - [ ] 2.5 Build dependency parser for Cargo.toml (Rust ecosystem)
-  - [ ] 2.6 Build dependency parser for pom.xml and build.gradle (Java ecosystem)
-  - [ ] 2.7 Implement smart dependency file detection across repository structure
-  - [ ] 2.8 Add error handling for private repositories and invalid URLs
+  - [x] 2.1 Create GitHub API client with rate limiting and authentication handling
+  - [x] 2.2 Implement repository validation and metadata extraction (last commit, contributors, issues)
+  - [x] 2.3 Build dependency parser for package.json (Node.js/npm ecosystem)
+  - [x] 2.4 Build dependency parser for requirements.txt (Python/pip ecosystem)
+  - [x] 2.5 Build dependency parser for Cargo.toml (Rust ecosystem)
+  - [x] 2.6 Build dependency parser for pom.xml and build.gradle (Java ecosystem)
+  - [x] 2.7 Implement smart dependency file detection across repository structure
+  - [x] 2.8 Add error handling for private repositories and invalid URLs
 
 - [ ] 3.0 Build Vulnerability Scanning and NVD Integration
-  - [ ] 3.1 Integrate with National Vulnerability Database (NVD) API v2.0
+  - [x] 3.1 Integrate with National Vulnerability Database (NVD) API v2.0
   - [ ] 3.2 Implement CVE lookup by package name and version with caching
   - [ ] 3.3 Filter vulnerabilities to Critical and High severity only
   - [ ] 3.4 Add rate limiting and retry logic for external API calls
