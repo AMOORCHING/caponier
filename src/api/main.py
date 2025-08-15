@@ -148,23 +148,51 @@ async def general_exception_handler(request: Request, exc: Exception):
         content=error_response.dict()
     )
 
-# In-memory storage for demo purposes (will be replaced with Redis in task 5.0)
-analysis_jobs: Dict[str, Dict[str, Any]] = {}
-analysis_results: Dict[str, AnalysisResult] = {}
+# Redis and job management configuration
+from .config import redis_manager, app_config
+from .jobs.job_manager import JobManager
+
+# Initialize job manager with Redis backend
+job_manager = JobManager(redis_manager)
 
 @app.get("/health", response_model=HealthCheckResponse)
-def health_check():
+async def health_check():
     """Health check endpoint for monitoring and Kubernetes probes"""
-    return HealthCheckResponse(
-        status="ok", 
-        service="caponier-api",
-        dependencies={
-            "redis": "pending",  # Will be updated when Redis is integrated
+    try:
+        # Check Redis health
+        redis_health = await redis_manager.health_check()
+        redis_status = "healthy" if all(status == "healthy" for status in redis_health.values()) else "unhealthy"
+        
+        # Get system status
+        system_status = job_manager.get_system_status()
+        
+        dependencies = {
+            "redis": redis_status,
+            "redis_details": redis_health,
             "nvd_api": "pending",  # Will be updated when NVD integration is added
             "github_api": "pending",  # Will be updated when GitHub client is added
-            "cors": "enabled"  # CORS is now configured
+            "cors": "enabled",
+            "job_system": "enabled",
+            "system_load": f"{system_status.get('jobs', {}).get('system_load_percent', 0)}%"
         }
-    )
+        
+        overall_status = "ok" if redis_status == "healthy" else "degraded"
+        
+        return HealthCheckResponse(
+            status=overall_status,
+            service="caponier-api",
+            dependencies=dependencies
+        )
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return HealthCheckResponse(
+            status="error",
+            service="caponier-api", 
+            dependencies={
+                "redis": "error",
+                "error": str(e)
+            }
+        )
 
 @app.options("/{full_path:path}")
 async def options_handler(request: Request, full_path: str):
@@ -223,42 +251,27 @@ async def initiate_analysis(
         normalized_url = await validate_repository_url(request.repository_url)
         owner, repo = GitHubURLValidator.extract_owner_repo(normalized_url)
         
-        # Generate unique job ID
-        job_id = str(uuid.uuid4())
+        logger.info(f"Creating analysis job for repository: {normalized_url}")
         
-        # Create initial job record with validated URL
-        job_data = {
-            "job_id": job_id,
-            "repository_url": normalized_url,
-            "owner": owner,
-            "repository": repo,
-            "original_url": request.repository_url,
-            "status": JobStatus.PENDING,
-            "created_at": datetime.utcnow(),
-            "progress_percentage": 0,
-            "current_stage": "Repository validated",
-            "stage_message": f"Repository {owner}/{repo} validated and queued for analysis"
-        }
-        
-        # Store job in temporary storage
-        analysis_jobs[job_id] = job_data
-        
-        logger.info(f"Analysis job {job_id} created for repository: {normalized_url}")
-        
-        # TODO: Add background task when job processing is implemented (task 5.0)
-        # background_tasks.add_task(process_repository_analysis, job_id, normalized_url)
-        
-        # Calculate estimated duration based on typical repository analysis
-        estimated_duration = 90  # seconds, will be refined based on repository size
-        
-        return AnalysisResponse(
-            job_id=job_id,
-            status=JobStatus.PENDING,
-            repository_url=normalized_url,
-            estimated_duration=estimated_duration,
-            progress_url=f"/analysis/{job_id}/progress",
-            result_url=f"/analysis/{job_id}"
+        # Create job using job manager
+        response = job_manager.create_analysis_job(
+            request=request,
+            normalized_url=normalized_url,
+            owner=owner,
+            repo=repo
         )
+        
+        # Schedule background analysis task
+        from .jobs.tasks import schedule_repository_analysis
+        schedule_repository_analysis(
+            job_id=response.job_id,
+            repository_url=normalized_url,
+            owner=owner,
+            repo=repo
+        )
+        
+        logger.info(f"Analysis job {response.job_id} created for repository: {normalized_url}")
+        return response
         
     except CaponierException:
         # Re-raise custom exceptions - they will be handled by the global exception handler
@@ -277,49 +290,15 @@ async def get_analysis_result(job_id: str):
     and recommendations. Only available for completed jobs.
     """
     try:
-        # Check if job exists
-        if job_id not in analysis_jobs:
-            from .utils.exceptions import JobNotFoundError
-            raise JobNotFoundError(job_id)
-        
-        job_data = analysis_jobs[job_id]
-        
-        # Check if analysis is completed
-        if job_data["status"] != JobStatus.COMPLETED:
-            current_status = job_data["status"]
-            if current_status == JobStatus.FAILED:
-                error_message = job_data.get("error_message", "Analysis failed")
-                from .utils.exceptions import JobProcessingError
-                raise JobProcessingError(job_id, "analysis_execution", error_message)
-            else:
-                from .utils.exceptions import JobError
-                raise JobError(
-                    f"Analysis is still {current_status.value}",
-                    job_id,
-                    current_status.value
-                )
-        
-        # Return completed analysis result
-        if job_id in analysis_results:
-            return analysis_results[job_id]
-        else:
-            # This shouldn't happen if our system is working correctly
-            from .utils.exceptions import AnalysisError
-            raise AnalysisError("Analysis completed but results not found", job_id=job_id, stage="result_retrieval")
+        return job_manager.get_job_result(job_id)
             
-    except HTTPException:
-        # Re-raise HTTP exceptions as-is
+    except CaponierException:
+        # Re-raise custom exceptions - they will be handled by the global exception handler
         raise
     except Exception as e:
         logger.error(f"Error retrieving analysis result for job {job_id}: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=ErrorResponse(
-                error_code="RESULT_RETRIEVAL_FAILED",
-                message="Failed to retrieve analysis results",
-                details={"job_id": job_id, "error": str(e)}
-            ).dict()
-        )
+        from .utils.exceptions import JobError
+        raise JobError(f"Failed to retrieve analysis results: {str(e)}", job_id=job_id)
 
 @app.get("/analysis/{job_id}/progress", response_model=AnalysisProgress)
 async def get_analysis_progress(job_id: str):
@@ -330,46 +309,32 @@ async def get_analysis_progress(job_id: str):
     This endpoint is polled by the frontend and also complemented by WebSocket updates.
     """
     try:
-        # Check if job exists
-        if job_id not in analysis_jobs:
-            from .utils.exceptions import JobNotFoundError
-            raise JobNotFoundError(job_id)
+        return job_manager.get_job_progress(job_id)
         
-        job_data = analysis_jobs[job_id]
-        
-        # Calculate estimated completion time
-        estimated_completion = None
-        if job_data["status"] == JobStatus.IN_PROGRESS:
-            progress = job_data.get("progress_percentage", 0)
-            if progress > 0:
-                # Rough estimation based on current progress
-                elapsed = datetime.utcnow() - job_data["created_at"]
-                estimated_total = elapsed.total_seconds() * (100 / progress)
-                estimated_completion = job_data["created_at"] + timedelta(seconds=estimated_total)
-        
-        return AnalysisProgress(
-            job_id=job_id,
-            status=job_data["status"],
-            progress_percentage=job_data.get("progress_percentage", 0),
-            current_stage=job_data.get("current_stage", "Unknown"),
-            stage_message=job_data.get("stage_message", "No status message available"),
-            started_at=job_data["created_at"],
-            estimated_completion=estimated_completion
-        )
-        
-    except HTTPException:
-        # Re-raise HTTP exceptions as-is
+    except CaponierException:
+        # Re-raise custom exceptions - they will be handled by the global exception handler
         raise
     except Exception as e:
         logger.error(f"Error retrieving progress for job {job_id}: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=ErrorResponse(
-                error_code="PROGRESS_RETRIEVAL_FAILED",
-                message="Failed to retrieve analysis progress",
-                details={"job_id": job_id, "error": str(e)}
-            ).dict()
-        )
+        from .utils.exceptions import JobError
+        raise JobError(f"Failed to retrieve analysis progress: {str(e)}", job_id=job_id)
+
+@app.get("/system/status")
+async def get_system_status():
+    """
+    Get system status and metrics
+    
+    Returns information about job queue, system load, and capacity.
+    Useful for monitoring and load balancing decisions.
+    """
+    try:
+        return job_manager.get_system_status()
+    except Exception as e:
+        logger.error(f"Error getting system status: {e}")
+        return {
+            "error": "Failed to get system status",
+            "details": str(e)
+        }
 
 # TODO: Add WebSocket endpoint for real-time progress updates (task 6.0)
 # TODO: Add result sharing endpoints (task 8.0)
