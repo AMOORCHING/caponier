@@ -74,6 +74,17 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         from ..security.reporting import ReportGenerator
         from ..security.github_client import get_github_client
         
+        async def execute_stage(stage_name: str, stage_func, *args, **kwargs):
+            """Execute an analysis stage with error handling and retry logic"""
+            try:
+                return await stage_func(*args, **kwargs)
+            except Exception as e:
+                logger.error(f"Stage {stage_name} failed for job {job_id}: {e}")
+                # Use the task's intelligent retry logic
+                self.handle_task_error(e, job_id, stage_name)
+                # If we get here, the error was not retryable
+                raise
+        
         # Stage 1: Repository validation and metadata extraction
         timeout_manager.update_job_heartbeat(job_id, "repository_validation")
         job_manager.update_job_progress(

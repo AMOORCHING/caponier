@@ -28,22 +28,79 @@ logger = logging.getLogger(__name__)
 
 class CaponierTask(Task):
     """
-    Custom Celery task base class with enhanced error handling and logging
+    Custom Celery task base class with enhanced error handling and retry logic
     
-    Provides automatic job status updates, retry logic, and proper error handling
-    for all Caponier analysis tasks.
+    Provides intelligent retry logic with error classification, automatic job 
+    status updates, and comprehensive error tracking for all analysis tasks.
     """
     
-    autoretry_for = (Exception,)
-    retry_kwargs = {'max_retries': 3, 'countdown': 60}
-    retry_backoff = True
-    retry_backoff_max = 600  # 10 minutes
-    retry_jitter = True
+    # Disable automatic retries - we'll handle them manually with RetryManager
+    autoretry_for = ()
+    retry_kwargs = {}
     
     def __init__(self):
         super().__init__()
         self.job_manager: Optional[JobManager] = None
         self.worker_id: Optional[str] = None
+        self.retry_manager = None
+    
+    def get_retry_manager(self):
+        """Get retry manager instance"""
+        if self.retry_manager is None:
+            from .retry_manager import get_retry_manager
+            self.retry_manager = get_retry_manager()
+        return self.retry_manager
+    
+    def handle_task_error(self, exc, job_id: str, stage: str = None):
+        """
+        Handle task errors with intelligent retry logic
+        
+        Args:
+            exc: Exception that occurred
+            job_id: Job identifier
+            stage: Current analysis stage
+            
+        Raises:
+            Retry: If task should be retried
+            Exception: If task should fail permanently
+        """
+        try:
+            retry_manager = self.get_retry_manager()
+            attempt = self.request.retries
+            
+            should_retry, delay = retry_manager.should_retry(
+                job_id=job_id,
+                error=exc,
+                attempt=attempt,
+                task_name=self.name,
+                stage=stage
+            )
+            
+            if should_retry:
+                # Update job progress to show retry
+                if self.job_manager:
+                    try:
+                        self.job_manager.update_job_progress(
+                            job_id=job_id,
+                            progress_percentage=0,
+                            current_stage="retrying",
+                            stage_message=f"Retrying analysis (attempt {attempt + 1}): {str(exc)[:100]}"
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to update progress on retry for job {job_id}: {e}")
+                
+                # Raise Retry exception with calculated delay
+                raise Retry(str(exc), countdown=delay)
+            else:
+                # Don't retry - let it fail permanently
+                raise exc
+                
+        except Retry:
+            raise  # Re-raise Retry exception
+        except Exception as e:
+            logger.error(f"Error in retry logic for job {job_id}: {e}")
+            # Fallback to permanent failure
+            raise exc
     
     def on_retry(self, exc, task_id, args, kwargs, einfo):
         """Called when task is retried"""
@@ -52,19 +109,15 @@ class CaponierTask(Task):
         
         logger.warning(f"Task {task_id} retry {retry_count} for job {job_id}: {exc}")
         
-        if self.job_manager and job_id:
-            try:
-                self.job_manager.update_job_progress(
-                    job_id=job_id,
-                    progress_percentage=0,
-                    current_stage="retrying",
-                    stage_message=f"Retrying analysis (attempt {retry_count + 1}/3): {str(exc)[:100]}"
-                )
-            except Exception as e:
-                logger.error(f"Failed to update progress on retry for job {job_id}: {e}")
+        # Update retry statistics
+        try:
+            retry_manager = self.get_retry_manager()
+            retry_manager.redis_client.hincrby("retry:stats", "successful_retries", 1)
+        except Exception as e:
+            logger.debug(f"Failed to update retry statistics: {e}")
     
     def on_failure(self, exc, task_id, args, kwargs, einfo):
-        """Called when task fails permanently"""
+        """Called when task fails permanently (no more retries)"""
         job_id = kwargs.get('job_id') or (args[0] if args else None)
         worker_id = self.worker_id or "unknown"
         
@@ -73,12 +126,27 @@ class CaponierTask(Task):
         
         if self.job_manager and job_id:
             try:
+                # Get failure history for enhanced context
+                failure_context = {"retry_count": self.request.retries}
+                try:
+                    retry_manager = self.get_retry_manager()
+                    failure_history = retry_manager.get_failure_history(job_id)
+                    if failure_history:
+                        failure_context.update({
+                            "total_attempts": len(failure_history) + 1,
+                            "failure_categories": list(set(f.category.value for f in failure_history)),
+                            "last_stage": failure_history[0].stage if failure_history else None,
+                            "first_failure": failure_history[-1].timestamp.isoformat() if failure_history else None
+                        })
+                except Exception as e:
+                    logger.debug(f"Failed to get failure context: {e}")
+                
                 error_details = {
                     "task_id": task_id,
                     "worker_id": worker_id,
                     "exception_type": type(exc).__name__,
                     "traceback": str(einfo),
-                    "retry_count": self.request.retries
+                    "failure_context": failure_context
                 }
                 
                 self.job_manager.fail_job(
@@ -94,6 +162,14 @@ class CaponierTask(Task):
         """Called when task succeeds"""
         job_id = kwargs.get('job_id') or (args[0] if args else None)
         logger.info(f"Task {task_id} completed successfully for job {job_id}")
+        
+        # Clear failure history on success
+        if job_id:
+            try:
+                retry_manager = self.get_retry_manager()
+                retry_manager.clear_failure_history(job_id)
+            except Exception as e:
+                logger.debug(f"Failed to clear failure history for job {job_id}: {e}")
 
 
 class WorkerManager:

@@ -739,6 +739,110 @@ async def delete_result(job_id: str):
             detail=f"Failed to delete result: {str(e)}"
         )
 
+@app.get("/system/retry-statistics")
+async def get_retry_statistics():
+    """
+    Get comprehensive retry statistics and analytics
+    
+    Returns:
+        Retry statistics including success rates and failure categories
+    """
+    try:
+        from .jobs.retry_manager import get_retry_manager
+        
+        retry_manager = get_retry_manager()
+        stats = retry_manager.get_retry_statistics()
+        
+        return {
+            "retry_statistics": stats,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting retry statistics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get retry statistics: {str(e)}"
+        )
+
+@app.get("/analysis/{job_id}/failure-history")
+async def get_failure_history(job_id: str):
+    """
+    Get failure history for a specific job
+    
+    Args:
+        job_id: Job identifier
+        
+    Returns:
+        List of failure records with detailed information
+    """
+    try:
+        from .jobs.retry_manager import get_retry_manager
+        
+        retry_manager = get_retry_manager()
+        failure_history = retry_manager.get_failure_history(job_id)
+        
+        # Convert failure records to API format
+        history_data = []
+        for failure in failure_history:
+            history_data.append({
+                "attempt": failure.attempt,
+                "category": failure.category.value,
+                "error_type": failure.error_type,
+                "error_message": failure.error_message,
+                "timestamp": failure.timestamp.isoformat(),
+                "stage": failure.stage,
+                "worker_id": failure.worker_id,
+                "next_retry_at": failure.next_retry_at.isoformat() if failure.next_retry_at else None
+            })
+        
+        return {
+            "job_id": job_id,
+            "failure_count": len(history_data),
+            "failure_history": history_data,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting failure history for job {job_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get failure history: {str(e)}"
+        )
+
+@app.post("/analysis/{job_id}/clear-failures")
+async def clear_failure_history(job_id: str):
+    """
+    Clear failure history for a job (useful for debugging/testing)
+    
+    Args:
+        job_id: Job identifier
+        
+    Returns:
+        Confirmation of cleared history
+    """
+    try:
+        from .jobs.retry_manager import get_retry_manager
+        
+        retry_manager = get_retry_manager()
+        cleared = retry_manager.clear_failure_history(job_id)
+        
+        if cleared:
+            return {
+                "message": f"Failure history cleared for job {job_id}",
+                "job_id": job_id,
+                "cleared_at": datetime.utcnow().isoformat()
+            }
+        else:
+            return {
+                "message": f"No failure history found for job {job_id}",
+                "job_id": job_id
+            }
+    except Exception as e:
+        logger.error(f"Error clearing failure history for job {job_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to clear failure history: {str(e)}"
+        )
+
 # TODO: Add WebSocket endpoint for real-time progress updates (task 6.0)
 # TODO: Add result sharing endpoints (task 8.0)
 # TODO: Add security badge generation endpoints (task 8.0)
