@@ -75,14 +75,14 @@ Based on PRD: `prd-caponier-mvp.md`
   - [x] 3.6 Implement circuit breaker pattern for external service resilience
   - [x] 3.7 Add vulnerability data enrichment with CVSS scores and impact details
 
-- [ ] 4.0 Develop Security Scoring Algorithm and Reporting
-  - [ ] 4.1 Implement weighted scoring: Critical vulnerabilities = 10 points, High = 5 points
-  - [ ] 4.2 Add maintenance health scoring based on last commit date and contributor activity
-  - [ ] 4.3 Calculate overall security score (0-100 scale) with component breakdown
-  - [ ] 4.4 Generate actionable recommendations (package updates, security practices)
-  - [ ] 4.5 Add comparative context generation ("Better than X% of similar repositories")
-  - [ ] 4.6 Create detailed analysis report structure with vulnerability lists and metadata
-  - [ ] 4.7 Implement security badge generation for embeddable widgets
+- [x] 4.0 Develop Security Scoring Algorithm and Reporting
+  - [x] 4.1 Implement weighted scoring: Critical vulnerabilities = 10 points, High = 5 points
+  - [x] 4.2 Add maintenance health scoring based on last commit date and contributor activity
+  - [x] 4.3 Calculate overall security score (0-100 scale) with component breakdown
+  - [x] 4.4 Generate actionable recommendations (package updates, security practices)
+  - [x] 4.5 Add comparative context generation ("Better than X% of similar repositories")
+  - [x] 4.6 Create detailed analysis report structure with vulnerability lists and metadata
+  - [x] 4.7 Implement security badge generation for embeddable widgets
 
 - [ ] 5.0 Create Asynchronous Job Processing with Redis and Background Workers
   - [ ] 5.1 Set up Redis connection and configuration for job queue management
@@ -131,3 +131,21 @@ Based on PRD: `prd-caponier-mvp.md`
   - [ ] 9.6 Update values.yaml with production configuration and resource limits
   - [ ] 9.7 Add health checks and monitoring endpoints for Kubernetes probes
   - [ ] 9.8 Create docker-compose.yml for local development environment
+
+## Relevant Files
+- `src/api/main.py` - Main FastAPI application with health check and analysis endpoints
+- `src/api/models.py` - Pydantic models for API requests/responses, including VulnerabilityData, AnalysisResult, SecurityScore
+- `src/api/utils/validators.py` - Repository URL validation with GitHub API verification
+- `src/api/utils/exceptions.py` - Custom exception hierarchy for structured error handling
+- `src/api/security/github_client.py` - GitHub API client with rate limiting, caching, and error handling
+- `src/api/security/repository_analyzer.py` - Repository validation and metadata extraction service
+- `src/api/security/dependency_parser.py` - Multi-ecosystem dependency parsing with smart file discovery
+- `src/api/security/vulnerability_scanner.py` - NVD API integration for CVE lookup and vulnerability scanning
+- `src/api/security/cve_lookup.py` - Advanced CVE lookup with multi-tier caching and version matching
+- `src/api/security/circuit_breaker.py` - Circuit breaker pattern for external service resilience
+- `src/api/security/vulnerability_enrichment.py` - CVSS analysis and impact details for vulnerabilities
+- `src/api/security/scoring.py` - Security scoring algorithm with weighted vulnerability scoring and reporting
+- `src/api/security/reporting.py` - Detailed analysis report structure with multiple export formats
+- `requirements.txt` - Python dependencies with version constraints
+- `requirements-dev.txt` - Development dependencies for testing and code quality
+- `Dockerfile.api` - Docker configuration for API service deployment
