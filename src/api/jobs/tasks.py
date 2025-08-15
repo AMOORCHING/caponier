@@ -60,12 +60,11 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         from .timeout_manager import get_timeout_manager
         timeout_manager = get_timeout_manager()
         timeout_manager.register_job_timeout(job_id, worker_id)
-        
-        try:
-            # Start job processing
-            if not job_manager.start_job_processing(job_id, worker_id):
-                timeout_manager.unregister_job_timeout(job_id, "failed_to_start")
-                raise AnalysisError(f"Could not acquire lock for job {job_id}", job_id=job_id)
+
+        # Start job processing
+        if not job_manager.start_job_processing(job_id, worker_id):
+            timeout_manager.unregister_job_timeout(job_id, "failed_to_start")
+            raise AnalysisError(f"Could not acquire lock for job {job_id}", job_id=job_id)
         
         # Initialize analysis components
         from ..security.repository_analyzer import RepositoryAnalyzer
