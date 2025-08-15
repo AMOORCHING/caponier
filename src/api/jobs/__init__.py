@@ -8,6 +8,7 @@ from .job_manager import JobManager
 from .job_storage import JobStorage
 from .worker import WorkerManager, get_worker_manager
 from .status_tracker import EnhancedStatusTracker, JobStatusAnalytics
+from .timeout_manager import TimeoutManager, TimeoutConfig, get_timeout_manager
 from .tasks import (
     analyze_repository_task,
     scan_dependencies_task,
@@ -28,6 +29,9 @@ __all__ = [
     "get_worker_manager",
     "EnhancedStatusTracker",
     "JobStatusAnalytics",
+    "TimeoutManager",
+    "TimeoutConfig", 
+    "get_timeout_manager",
     "analyze_repository_task",
     "scan_dependencies_task", 
     "check_vulnerabilities_task",

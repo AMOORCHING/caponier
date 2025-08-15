@@ -519,6 +519,70 @@ async def get_stuck_jobs(timeout_minutes: int = 10):
             detail=f"Failed to get stuck jobs: {str(e)}"
         )
 
+@app.get("/system/timeout-statistics")
+async def get_timeout_statistics():
+    """
+    Get comprehensive timeout monitoring statistics
+    
+    Returns:
+        Timeout statistics including active jobs, configuration, and metrics
+    """
+    try:
+        from .jobs.timeout_manager import get_timeout_manager
+        
+        timeout_manager = get_timeout_manager()
+        stats = timeout_manager.get_timeout_statistics()
+        
+        return {
+            "timeout_statistics": stats,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting timeout statistics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get timeout statistics: {str(e)}"
+        )
+
+@app.post("/system/force-timeout/{job_id}")
+async def force_timeout_job(job_id: str, reason: str = "manual"):
+    """
+    Manually force timeout a specific job
+    
+    Args:
+        job_id: Job identifier to timeout
+        reason: Reason for manual timeout
+        
+    Returns:
+        Success status and details
+    """
+    try:
+        from .jobs.timeout_manager import get_timeout_manager
+        
+        timeout_manager = get_timeout_manager()
+        success = timeout_manager.force_timeout_job(job_id, reason)
+        
+        if success:
+            return {
+                "message": f"Job {job_id} was successfully timed out",
+                "job_id": job_id,
+                "reason": reason,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Job {job_id} not found or not eligible for timeout"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error forcing timeout for job {job_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to force timeout job: {str(e)}"
+        )
+
 # TODO: Add WebSocket endpoint for real-time progress updates (task 6.0)
 # TODO: Add result sharing endpoints (task 8.0)
 # TODO: Add security badge generation endpoints (task 8.0)

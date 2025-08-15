@@ -56,9 +56,16 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         """Inner async function to handle the analysis pipeline"""
         logger.info(f"Starting repository analysis for job {job_id}: {repository_url}")
         
-        # Start job processing
-        if not job_manager.start_job_processing(job_id, worker_id):
-            raise AnalysisError(f"Could not acquire lock for job {job_id}", job_id=job_id)
+        # Register job for timeout monitoring
+        from .timeout_manager import get_timeout_manager
+        timeout_manager = get_timeout_manager()
+        timeout_manager.register_job_timeout(job_id, worker_id)
+        
+        try:
+            # Start job processing
+            if not job_manager.start_job_processing(job_id, worker_id):
+                timeout_manager.unregister_job_timeout(job_id, "failed_to_start")
+                raise AnalysisError(f"Could not acquire lock for job {job_id}", job_id=job_id)
         
         # Initialize analysis components
         from ..security.repository_analyzer import RepositoryAnalyzer
@@ -69,6 +76,7 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         from ..security.github_client import get_github_client
         
         # Stage 1: Repository validation and metadata extraction
+        timeout_manager.update_job_heartbeat(job_id, "repository_validation")
         job_manager.update_job_progress(
             job_id=job_id,
             progress_percentage=10,
@@ -81,6 +89,7 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
             logger.info(f"Repository metadata extracted for {owner}/{repo}: {repo_metadata.last_commit_date}")
         
         # Stage 2: Dependency scanning
+        timeout_manager.update_job_heartbeat(job_id, "dependency_scanning")
         job_manager.update_job_progress(
             job_id=job_id,
             progress_percentage=25,
@@ -94,6 +103,7 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         logger.info(f"Found {len(dependencies)} dependencies in {owner}/{repo}")
         
         # Stage 3: Vulnerability scanning
+        timeout_manager.update_job_heartbeat(job_id, "vulnerability_lookup")
         job_manager.update_job_progress(
             job_id=job_id,
             progress_percentage=50,
@@ -159,6 +169,7 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         logger.info(f"Found {len(vulnerabilities)} vulnerabilities in {owner}/{repo}")
         
         # Stage 4: Security scoring
+        timeout_manager.update_job_heartbeat(job_id, "scoring_calculation")
         job_manager.update_job_progress(
             job_id=job_id,
             progress_percentage=85,
@@ -176,6 +187,7 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         logger.info(f"Security score calculated for {owner}/{repo}: {security_score.overall_score}")
         
         # Stage 5: Report generation
+        timeout_manager.update_job_heartbeat(job_id, "report_generation")
         job_manager.update_job_progress(
             job_id=job_id,
             progress_percentage=95,
@@ -198,6 +210,9 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         # Complete the job
         job_manager.complete_job(job_id, worker_id, analysis_result)
         
+        # Unregister from timeout monitoring
+        timeout_manager.unregister_job_timeout(job_id, "completed")
+        
         logger.info(f"Completed repository analysis for job {job_id}: {repository_url}")
         
         return {
@@ -215,6 +230,13 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         return asyncio.run(run_analysis())
         
     except Exception as e:
+        # Ensure timeout monitoring is cleaned up on any error
+        try:
+            from .timeout_manager import get_timeout_manager
+            timeout_manager = get_timeout_manager()
+            timeout_manager.unregister_job_timeout(job_id, "error")
+        except:
+            pass  # Don't let cleanup errors mask the original error
         logger.error(f"Repository analysis failed for job {job_id}: {e}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         
