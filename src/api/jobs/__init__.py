@@ -7,6 +7,7 @@ Handles asynchronous repository analysis tasks using Celery and Redis.
 from .job_manager import JobManager
 from .job_storage import JobStorage
 from .worker import WorkerManager, get_worker_manager
+from .status_tracker import EnhancedStatusTracker, JobStatusAnalytics
 from .tasks import (
     analyze_repository_task,
     scan_dependencies_task,
@@ -25,6 +26,8 @@ __all__ = [
     "JobStorage",
     "WorkerManager",
     "get_worker_manager",
+    "EnhancedStatusTracker",
+    "JobStatusAnalytics",
     "analyze_repository_task",
     "scan_dependencies_task", 
     "check_vulnerabilities_task",

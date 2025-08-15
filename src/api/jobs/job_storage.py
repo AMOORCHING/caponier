@@ -299,6 +299,20 @@ class JobStorage:
             # Execute pipeline
             pipe.execute()
             
+            # Record status change in enhanced tracker (if available)
+            try:
+                from .status_tracker import EnhancedStatusTracker
+                tracker = EnhancedStatusTracker(self.redis_manager)
+                tracker.record_status_change(
+                    job_id=job_id,
+                    old_status=job_meta.status,
+                    new_status=status,
+                    worker_id=worker_id,
+                    reason=error_message if status == JobStatus.FAILED else None
+                )
+            except Exception as e:
+                logger.debug(f"Failed to record status change in enhanced tracker: {e}")
+            
             logger.info(f"Updated job {job_id} status to {status.value}")
             
         except JobNotFoundError:

@@ -410,6 +410,115 @@ async def schedule_worker_health_check():
             detail=f"Failed to schedule health check: {str(e)}"
         )
 
+@app.get("/system/status-analytics")
+async def get_status_analytics(time_window_hours: int = 24):
+    """
+    Get comprehensive job status analytics
+    
+    Args:
+        time_window_hours: Hours to look back for analytics (default: 24)
+        
+    Returns:
+        Detailed analytics including status counts, success rates, and trends
+    """
+    try:
+        from .jobs.status_tracker import EnhancedStatusTracker
+        
+        tracker = EnhancedStatusTracker(redis_manager)
+        analytics = tracker.get_status_analytics(time_window_hours)
+        
+        return {
+            "analytics": {
+                "total_jobs": analytics.total_jobs,
+                "status_counts": analytics.status_counts,
+                "success_rate": analytics.success_rate,
+                "failure_rate": analytics.failure_rate,
+                "pending_queue_depth": analytics.pending_queue_depth,
+                "worker_utilization": analytics.worker_utilization,
+                "status_transitions": analytics.status_transitions,
+                "hourly_completion_rate": analytics.hourly_completion_rate,
+                "average_processing_time": analytics.average_processing_time
+            },
+            "time_window_hours": time_window_hours,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting status analytics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get status analytics: {str(e)}"
+        )
+
+@app.get("/analysis/{job_id}/status-history")
+async def get_job_status_history(job_id: str, limit: int = 20):
+    """
+    Get detailed status history for a specific job
+    
+    Args:
+        job_id: Job identifier
+        limit: Maximum number of history entries to return
+        
+    Returns:
+        Status change history with timestamps and details
+    """
+    try:
+        from .jobs.status_tracker import EnhancedStatusTracker
+        
+        tracker = EnhancedStatusTracker(redis_manager)
+        history = tracker.get_job_status_history(job_id, limit)
+        
+        return {
+            "job_id": job_id,
+            "status_history": [
+                {
+                    "old_status": entry.old_status.value,
+                    "new_status": entry.new_status.value,
+                    "timestamp": entry.timestamp.isoformat(),
+                    "worker_id": entry.worker_id,
+                    "reason": entry.reason,
+                    "duration_in_previous_status": entry.duration_in_previous_status
+                }
+                for entry in history
+            ],
+            "total_entries": len(history)
+        }
+    except Exception as e:
+        logger.error(f"Error getting status history for job {job_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get status history: {str(e)}"
+        )
+
+@app.get("/system/stuck-jobs")
+async def get_stuck_jobs(timeout_minutes: int = 10):
+    """
+    Find jobs that appear to be stuck in processing
+    
+    Args:
+        timeout_minutes: Minutes to consider a job stuck (default: 10)
+        
+    Returns:
+        List of potentially stuck jobs with details
+    """
+    try:
+        from .jobs.status_tracker import EnhancedStatusTracker
+        
+        tracker = EnhancedStatusTracker(redis_manager)
+        stuck_jobs = tracker.get_stuck_jobs(timeout_minutes)
+        
+        return {
+            "stuck_jobs": stuck_jobs,
+            "timeout_minutes": timeout_minutes,
+            "total_stuck": len(stuck_jobs),
+            "checked_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting stuck jobs: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get stuck jobs: {str(e)}"
+        )
+
 # TODO: Add WebSocket endpoint for real-time progress updates (task 6.0)
 # TODO: Add result sharing endpoints (task 8.0)
 # TODO: Add security badge generation endpoints (task 8.0)
