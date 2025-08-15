@@ -9,6 +9,7 @@ from .job_storage import JobStorage
 from .worker import WorkerManager, get_worker_manager
 from .status_tracker import EnhancedStatusTracker, JobStatusAnalytics
 from .timeout_manager import TimeoutManager, TimeoutConfig, get_timeout_manager
+from .result_storage import EnhancedResultStorage, ResultMetadata, StorageFormat, ResultAccessLevel
 from .tasks import (
     analyze_repository_task,
     scan_dependencies_task,
@@ -32,6 +33,10 @@ __all__ = [
     "TimeoutManager",
     "TimeoutConfig", 
     "get_timeout_manager",
+    "EnhancedResultStorage",
+    "ResultMetadata",
+    "StorageFormat",
+    "ResultAccessLevel",
     "analyze_repository_task",
     "scan_dependencies_task", 
     "check_vulnerabilities_task",

@@ -191,8 +191,8 @@ async def health_check():
             dependencies={
                 "redis": "error",
                 "error": str(e)
-            }
-        )
+        }
+    )
 
 @app.options("/{full_path:path}")
 async def options_handler(request: Request, full_path: str):
@@ -581,6 +581,162 @@ async def force_timeout_job(job_id: str, reason: str = "manual"):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to force timeout job: {str(e)}"
+        )
+
+@app.post("/analysis/{job_id}/share")
+async def create_result_share_token(job_id: str):
+    """
+    Create a share token for analysis results
+    
+    Args:
+        job_id: Job identifier
+        
+    Returns:
+        Share token and sharing information
+    """
+    try:
+        from .jobs.result_storage import EnhancedResultStorage
+        
+        enhanced_storage = EnhancedResultStorage(redis_manager)
+        share_token = enhanced_storage.create_share_token(job_id)
+        
+        return {
+            "job_id": job_id,
+            "share_token": share_token,
+            "share_url": f"/shared/{share_token}",
+            "created_at": datetime.utcnow().isoformat(),
+            "expires_in_hours": 24
+        }
+    except Exception as e:
+        logger.error(f"Error creating share token for job {job_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create share token: {str(e)}"
+        )
+
+@app.get("/shared/{share_token}")
+async def get_shared_result(share_token: str):
+    """
+    Get analysis result using share token
+    
+    Args:
+        share_token: Share token for the result
+        
+    Returns:
+        Analysis result
+    """
+    try:
+        from .jobs.result_storage import EnhancedResultStorage
+        
+        enhanced_storage = EnhancedResultStorage(redis_manager)
+        result = enhanced_storage.get_result(share_token)
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error getting shared result for token {share_token}: {e}")
+        raise HTTPException(
+            status_code=404,
+            detail="Shared result not found or expired"
+        )
+
+@app.get("/analysis/{job_id}/result-info")
+async def get_result_metadata(job_id: str):
+    """
+    Get metadata about stored analysis result
+    
+    Args:
+        job_id: Job identifier
+        
+    Returns:
+        Result metadata including storage details
+    """
+    try:
+        from .jobs.result_storage import EnhancedResultStorage
+        
+        enhanced_storage = EnhancedResultStorage(redis_manager)
+        metadata = enhanced_storage.get_result_metadata(job_id)
+        
+        return {
+            "job_id": job_id,
+            "storage_format": metadata.storage_format.value,
+            "compressed_size": metadata.compressed_size,
+            "uncompressed_size": metadata.uncompressed_size,
+            "compression_ratio": metadata.compressed_size / metadata.uncompressed_size if metadata.uncompressed_size > 0 else 1.0,
+            "stored_at": metadata.stored_at.isoformat(),
+            "expires_at": metadata.expires_at.isoformat(),
+            "access_level": metadata.access_level.value,
+            "share_token": metadata.share_token,
+            "access_count": metadata.access_count,
+            "last_accessed": metadata.last_accessed.isoformat() if metadata.last_accessed else None,
+            "has_checksum": metadata.checksum is not None
+        }
+    except Exception as e:
+        logger.error(f"Error getting result metadata for job {job_id}: {e}")
+        raise HTTPException(
+            status_code=404,
+            detail="Result metadata not found"
+        )
+
+@app.get("/system/storage-statistics")
+async def get_storage_statistics():
+    """
+    Get comprehensive storage statistics
+    
+    Returns:
+        Storage statistics including usage and performance metrics
+    """
+    try:
+        from .jobs.result_storage import EnhancedResultStorage
+        
+        enhanced_storage = EnhancedResultStorage(redis_manager)
+        stats = enhanced_storage.get_storage_statistics()
+        
+        return {
+            "storage_statistics": stats,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting storage statistics: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get storage statistics: {str(e)}"
+        )
+
+@app.delete("/analysis/{job_id}/result")
+async def delete_result(job_id: str):
+    """
+    Delete stored analysis result
+    
+    Args:
+        job_id: Job identifier
+        
+    Returns:
+        Deletion status
+    """
+    try:
+        from .jobs.result_storage import EnhancedResultStorage
+        
+        enhanced_storage = EnhancedResultStorage(redis_manager)
+        deleted = enhanced_storage.delete_result(job_id)
+        
+        if deleted:
+            return {
+                "message": f"Result for job {job_id} was deleted",
+                "job_id": job_id,
+                "deleted_at": datetime.utcnow().isoformat()
+            }
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Result for job {job_id} not found"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting result for job {job_id}: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete result: {str(e)}"
         )
 
 # TODO: Add WebSocket endpoint for real-time progress updates (task 6.0)

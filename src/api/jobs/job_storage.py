@@ -441,13 +441,17 @@ class JobStorage:
             logger.error(f"Failed to get job progress for {job_id}: {e}")
             raise JobStorageError(f"Failed to get job progress: {str(e)}")
     
-    def store_job_result(self, job_id: str, result: AnalysisResult) -> None:
+    def store_job_result(self, job_id: str, result: AnalysisResult, enable_sharing: bool = False) -> str:
         """
-        Store analysis result
+        Store analysis result with enhanced storage features
         
         Args:
             job_id: Job identifier
             result: Analysis result data
+            enable_sharing: Whether to enable result sharing
+            
+        Returns:
+            Storage identifier (job_id or share token)
             
         Raises:
             JobNotFoundError: If job doesn't exist
@@ -457,14 +461,22 @@ class JobStorage:
             # Verify job exists
             self.get_job_metadata(job_id)
             
-            # Store result
+            # Use enhanced result storage
+            from .result_storage import EnhancedResultStorage, ResultAccessLevel
+            enhanced_storage = EnhancedResultStorage(self.redis_manager)
+            
+            access_level = ResultAccessLevel.SHARED if enable_sharing else ResultAccessLevel.PRIVATE
+            storage_id = enhanced_storage.store_result(job_id, result, access_level, enable_sharing)
+            
+            # Also store in legacy format for backward compatibility
             self.result_client.setex(
                 JobStorageKeys.job_result(job_id),
                 self.job_meta_ttl,
                 result.json()
             )
             
-            logger.info(f"Stored analysis result for job {job_id}")
+            logger.info(f"Stored analysis result for job {job_id} (enhanced storage)")
+            return storage_id
             
         except JobNotFoundError:
             raise
@@ -472,12 +484,13 @@ class JobStorage:
             logger.error(f"Failed to store job result for {job_id}: {e}")
             raise JobStorageError(f"Failed to store job result: {str(e)}")
     
-    def get_job_result(self, job_id: str) -> AnalysisResult:
+    def get_job_result(self, job_id: str, use_enhanced_storage: bool = True) -> AnalysisResult:
         """
         Retrieve analysis result
         
         Args:
             job_id: Job identifier
+            use_enhanced_storage: Whether to try enhanced storage first
             
         Returns:
             Analysis result
@@ -493,7 +506,19 @@ class JobStorage:
             if job_meta.status != JobStatus.COMPLETED:
                 raise JobStorageError(f"Job {job_id} is not completed (status: {job_meta.status.value})")
             
-            # Get result
+            # Try enhanced storage first
+            if use_enhanced_storage:
+                try:
+                    from .result_storage import EnhancedResultStorage
+                    enhanced_storage = EnhancedResultStorage(self.redis_manager)
+                    return enhanced_storage.get_result(job_id)
+                except JobNotFoundError:
+                    # Fall back to legacy storage
+                    pass
+                except Exception as e:
+                    logger.warning(f"Enhanced storage failed for job {job_id}, falling back to legacy: {e}")
+            
+            # Legacy storage fallback
             result_data = self.result_client.get(JobStorageKeys.job_result(job_id))
             if not result_data:
                 raise JobNotFoundError(f"Result not found for job {job_id}")
