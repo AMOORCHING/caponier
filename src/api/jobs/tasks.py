@@ -52,7 +52,8 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
     """
     worker_id = self.worker_id or "unknown"
     
-    try:
+    async def run_analysis():
+        """Inner async function to handle the analysis pipeline"""
         logger.info(f"Starting repository analysis for job {job_id}: {repository_url}")
         
         # Start job processing
@@ -60,11 +61,12 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
             raise AnalysisError(f"Could not acquire lock for job {job_id}", job_id=job_id)
         
         # Initialize analysis components
-        repo_analyzer = RepositoryAnalyzer()
-        dependency_parser = DependencyParser()
-        vuln_scanner = VulnerabilityScanner()
-        scorer = SecurityScorer()
-        report_generator = ReportGenerator()
+        from ..security.repository_analyzer import RepositoryAnalyzer
+        from ..security.dependency_parser import DependencyParser
+        from ..security.vulnerability_scanner import VulnerabilityScanner
+        from ..security.scoring import SecurityScorer
+        from ..security.reporting import ReportGenerator
+        from ..security.github_client import get_github_client
         
         # Stage 1: Repository validation and metadata extraction
         job_manager.update_job_progress(
@@ -74,8 +76,9 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
             stage_message="Validating repository and extracting metadata..."
         )
         
-        repo_metadata = repo_analyzer.analyze_repository(repository_url, owner, repo)
-        logger.info(f"Repository metadata extracted for {owner}/{repo}")
+        async with RepositoryAnalyzer() as repo_analyzer:
+            repo_metadata = await repo_analyzer.analyze_repository(repository_url, owner, repo)
+            logger.info(f"Repository metadata extracted for {owner}/{repo}: {repo_metadata.last_commit_date}")
         
         # Stage 2: Dependency scanning
         job_manager.update_job_progress(
@@ -85,7 +88,9 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
             stage_message="Scanning repository dependencies..."
         )
         
-        dependencies = dependency_parser.parse_repository_dependencies(repository_url, owner, repo)
+        async with get_github_client() as github_client:
+            dependency_parser = DependencyParser(github_client)
+            dependencies = await dependency_parser.parse_repository_dependencies(owner, repo)
         logger.info(f"Found {len(dependencies)} dependencies in {owner}/{repo}")
         
         # Stage 3: Vulnerability scanning
@@ -97,22 +102,59 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         )
         
         vulnerabilities = []
-        for i, dependency in enumerate(dependencies):
-            # Update progress for each dependency
-            progress = 50 + int((i / len(dependencies)) * 30)  # 50-80% range
-            job_manager.update_job_progress(
-                job_id=job_id,
-                progress_percentage=progress,
-                current_stage="vulnerability_lookup",
-                stage_message=f"Checking {dependency.name} for vulnerabilities..."
-            )
-            
-            try:
-                dep_vulns = vuln_scanner.scan_dependency(dependency)
-                vulnerabilities.extend(dep_vulns)
-            except Exception as e:
-                logger.warning(f"Failed to scan dependency {dependency.name}: {e}")
-                # Continue with other dependencies
+        
+        # Use the vulnerability scanner's batch processing capability
+        if dependencies:
+            async with VulnerabilityScanner() as vuln_scanner:
+                # Process dependencies in batches for better progress tracking
+                batch_size = 10
+                total_deps = len(dependencies)
+                
+                for batch_start in range(0, total_deps, batch_size):
+                    batch_end = min(batch_start + batch_size, total_deps)
+                    batch_deps = dependencies[batch_start:batch_end]
+                    
+                    # Update progress for this batch
+                    progress = 50 + int((batch_start / total_deps) * 30)  # 50-80% range
+                    job_manager.update_job_progress(
+                        job_id=job_id,
+                        progress_percentage=progress,
+                        current_stage="vulnerability_lookup",
+                        stage_message=f"Scanning vulnerabilities for dependencies {batch_start + 1}-{batch_end} of {total_deps}..."
+                    )
+                    
+                    try:
+                        # Scan batch of dependencies  
+                        batch_matches = await vuln_scanner.scan_dependencies(
+                            batch_deps,
+                            severity_filter=None,  # Use default (Critical and High)
+                            include_low_confidence=False
+                        )
+                        
+                        # Convert VulnerabilityMatch objects to VulnerabilityData
+                        for match in batch_matches:
+                            if hasattr(match, 'vulnerability_data') and match.vulnerability_data:
+                                vulnerabilities.append(match.vulnerability_data)
+                            else:
+                                # Create VulnerabilityData from match data
+                                from ..models import VulnerabilityData, SeverityLevel
+                                
+                                vuln_data = VulnerabilityData(
+                                    cve_id=match.cve_id,
+                                    package_name=match.package_name,
+                                    package_version=match.package_version,
+                                    severity=SeverityLevel.HIGH,  # Default severity
+                                    description=f"Vulnerability found in {match.package_name}",
+                                    cve_url=f"https://nvd.nist.gov/vuln/detail/{match.cve_id}",
+                                    cvss_score=None,
+                                    published_date=None,
+                                    last_modified=None
+                                )
+                                vulnerabilities.append(vuln_data)
+                                
+                    except Exception as e:
+                        logger.warning(f"Failed to scan dependency batch {batch_start}-{batch_end}: {e}")
+                        # Continue with next batch
         
         logger.info(f"Found {len(vulnerabilities)} vulnerabilities in {owner}/{repo}")
         
@@ -124,20 +166,24 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
             stage_message="Calculating security scores and risk assessment..."
         )
         
+        scorer = SecurityScorer()
         security_score = scorer.calculate_security_score(
             vulnerabilities=vulnerabilities,
             dependencies=dependencies,
             repository_metadata=repo_metadata
         )
         
+        logger.info(f"Security score calculated for {owner}/{repo}: {security_score.overall_score}")
+        
         # Stage 5: Report generation
         job_manager.update_job_progress(
             job_id=job_id,
             progress_percentage=95,
             current_stage="report_generation",
-            stage_message="Generating security analysis report..."
+            stage_message="Generating comprehensive security analysis report..."
         )
         
+        report_generator = ReportGenerator()
         analysis_result = report_generator.generate_analysis_report(
             job_id=job_id,
             repository_url=repository_url,
@@ -162,6 +208,11 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
             "security_score": security_score.overall_score,
             "completed_at": datetime.utcnow().isoformat()
         }
+    
+    # Run the async analysis function
+    try:
+        import asyncio
+        return asyncio.run(run_analysis())
         
     except Exception as e:
         logger.error(f"Repository analysis failed for job {job_id}: {e}")
@@ -325,6 +376,33 @@ def health_check_task(self) -> Dict[str, Any]:
             "error": str(e),
             "timestamp": datetime.utcnow().isoformat()
         }
+
+
+@celery_app.task(bind=True, base=CaponierTask, name='caponier.test.simple_test')
+def simple_test_task(self, test_data: str = "Hello from Celery!") -> Dict[str, Any]:
+    """
+    Simple test task to verify Celery is working
+    
+    Args:
+        test_data: Test data to echo back
+        
+    Returns:
+        Dictionary with test results
+    """
+    import time
+    
+    logger.info(f"Running simple test task with data: {test_data}")
+    
+    # Simulate some work
+    time.sleep(2)
+    
+    return {
+        "worker_id": self.worker_id,
+        "test_data": test_data,
+        "status": "completed",
+        "timestamp": datetime.utcnow().isoformat(),
+        "message": "Test task completed successfully"
+    }
 
 
 # Task composition utilities

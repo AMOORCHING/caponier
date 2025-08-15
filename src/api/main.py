@@ -336,6 +336,80 @@ async def get_system_status():
             "details": str(e)
         }
 
+@app.post("/system/test-worker")
+async def test_worker():
+    """
+    Test background worker functionality
+    
+    Schedules a simple test task to verify Celery workers are functioning.
+    """
+    try:
+        from .jobs.tasks import simple_test_task
+        
+        # Schedule test task
+        task_result = simple_test_task.delay("API test request")
+        
+        return {
+            "message": "Test task scheduled successfully",
+            "task_id": task_result.id,
+            "status": "pending",
+            "check_url": f"/system/task-status/{task_result.id}"
+        }
+    except Exception as e:
+        logger.error(f"Error scheduling test task: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to schedule test task: {str(e)}"
+        )
+
+@app.get("/system/task-status/{task_id}")
+async def get_task_status(task_id: str):
+    """
+    Get status of a specific Celery task
+    
+    Args:
+        task_id: Celery task identifier
+        
+    Returns:
+        Task status information
+    """
+    try:
+        from .jobs.tasks import get_task_status
+        return get_task_status(task_id)
+    except Exception as e:
+        logger.error(f"Error getting task status for {task_id}: {e}")
+        return {
+            "task_id": task_id,
+            "status": "error",
+            "error": str(e)
+        }
+
+@app.post("/system/worker-health-check")
+async def schedule_worker_health_check():
+    """
+    Schedule a health check task on workers
+    
+    Useful for monitoring worker availability and performance.
+    """
+    try:
+        from .jobs.tasks import health_check_task
+        
+        # Schedule health check task
+        task_result = health_check_task.delay()
+        
+        return {
+            "message": "Health check task scheduled",
+            "task_id": task_result.id,
+            "status": "pending",
+            "check_url": f"/system/task-status/{task_result.id}"
+        }
+    except Exception as e:
+        logger.error(f"Error scheduling health check: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to schedule health check: {str(e)}"
+        )
+
 # TODO: Add WebSocket endpoint for real-time progress updates (task 6.0)
 # TODO: Add result sharing endpoints (task 8.0)
 # TODO: Add security badge generation endpoints (task 8.0)

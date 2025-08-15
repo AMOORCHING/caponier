@@ -13,8 +13,11 @@ from .tasks import (
     check_vulnerabilities_task,
     cleanup_jobs_task,
     health_check_task,
+    simple_test_task,
     schedule_repository_analysis,
-    schedule_maintenance_tasks
+    schedule_maintenance_tasks,
+    get_task_status,
+    revoke_task
 )
 
 __all__ = [
@@ -27,6 +30,9 @@ __all__ = [
     "check_vulnerabilities_task",
     "cleanup_jobs_task",
     "health_check_task",
+    "simple_test_task",
     "schedule_repository_analysis",
-    "schedule_maintenance_tasks"
+    "schedule_maintenance_tasks",
+    "get_task_status",
+    "revoke_task"
 ]
