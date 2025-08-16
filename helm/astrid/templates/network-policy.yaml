@@ -1,0 +1,42 @@
+{{- if .Values.api.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "astrid.fullname" . }}-api-network-policy
+  labels:
+    {{- include "astrid.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "astrid.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    {{- toYaml .Values.api.networkPolicy.ingressRules | nindent 4 }}
+  egress:
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow Redis communication
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Release.Namespace }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Allow health check endpoints
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 80
+          path: /health
+{{- end }}

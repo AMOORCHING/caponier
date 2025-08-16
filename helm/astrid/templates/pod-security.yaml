@@ -1,0 +1,17 @@
+{{- if .Values.api.podSecurity.enabled }}
+apiVersion: pod-security.kubernetes.io/v1
+kind: PodSecurityConfiguration
+metadata:
+  name: {{ include "astrid.fullname" . }}-pod-security
+  labels:
+    {{- include "astrid.labels" . | nindent 4 }}
+spec:
+  defaults:
+    audit: {{ .Values.api.podSecurity.level }}
+    enforce: {{ .Values.api.podSecurity.level }}
+    warn: {{ .Values.api.podSecurity.level }}
+  exemptions:
+    usernames: []
+    runtimeClasses: []
+    namespaces: []
+{{- end }}

@@ -1,0 +1,16 @@
+{{- if and .Values.redis.enabled .Values.redis.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "astrid.fullname" . }}-redis-pvc
+  labels:
+    {{- include "astrid.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.redis.persistence.size }}
+  storageClassName: {{ .Values.redis.persistence.storageClass | default "default" }}
+{{- end }}

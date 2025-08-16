@@ -1,23 +1,22 @@
+{{- if .Values.celery.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "astrid.fullname" . }}-api
+  name: {{ include "astrid.fullname" . }}-celery
   labels:
     {{- include "astrid.labels" . | nindent 4 }}
-    app.kubernetes.io/component: api
+    app.kubernetes.io/component: celery
 spec:
-  replicas: {{ .Values.api.replicaCount }}
+  replicas: {{ .Values.celery.replicaCount }}
   selector:
     matchLabels:
       {{- include "astrid.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: api
+      app.kubernetes.io/component: celery
   template:
     metadata:
       labels:
         {{- include "astrid.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: api
-      annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        app.kubernetes.io/component: celery
     spec:
       securityContext:
         runAsNonRoot: true
@@ -34,13 +33,10 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: api
-          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: 80
-              protocol: TCP
+        - name: celery
+          image: "{{ .Values.celery.image.repository }}:{{ .Values.celery.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.celery.image.pullPolicy }}
+          command: {{ .Values.celery.command }}
           env:
             - name: ENVIRONMENT
               value: "production"
@@ -50,13 +46,11 @@ spec:
               value: "1"
             - name: PYTHONUNBUFFERED
               value: "1"
-            {{- if .Values.api.env }}
-            {{- range $key, $value := .Values.api.env }}
-            - name: {{ $key }}
-              value: {{ $value | quote }}
-            {{- end }}
-            {{- end }}
-            {{- if .Values.api.envFromSecret }}
+            - name: CELERY_BROKER_URL
+              value: "redis://redis:6379/0"
+            - name: CELERY_RESULT_BACKEND
+              value: "redis://redis:6379/0"
+            {{- if .Values.celery.envFromSecret }}
             - name: GITHUB_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -71,43 +65,33 @@ spec:
                   optional: true
             {{- end }}
           livenessProbe:
-            httpGet:
-              path: /health
-              port: http
-              httpHeaders:
-                - name: User-Agent
-                  value: "kube-probe/1.0"
+            exec:
+              command:
+                - "celery"
+                - "-A"
+                - "src.api.celery_app"
+                - "inspect"
+                - "ping"
             initialDelaySeconds: 30
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 3
             successThreshold: 1
           readinessProbe:
-            httpGet:
-              path: /health
-              port: http
-              httpHeaders:
-                - name: User-Agent
-                  value: "kube-probe/1.0"
+            exec:
+              command:
+                - "celery"
+                - "-A"
+                - "src.api.celery_app"
+                - "inspect"
+                - "ping"
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
             successThreshold: 1
-          startupProbe:
-            httpGet:
-              path: /health
-              port: http
-              httpHeaders:
-                - name: User-Agent
-                  value: "kube-probe/1.0"
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 30
-            successThreshold: 1
           resources:
-            {{- toYaml .Values.api.resources | nindent 12 }}
+            {{- toYaml .Values.celery.resources | nindent 12 }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -132,15 +116,16 @@ spec:
         - name: logs
           emptyDir:
             sizeLimit: 100Mi
-      {{- with .Values.api.nodeSelector }}
+      {{- with .Values.celery.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.api.affinity }}
+      {{- with .Values.celery.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.api.tolerations }}
+      {{- with .Values.celery.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}
