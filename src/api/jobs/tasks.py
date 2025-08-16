@@ -52,8 +52,8 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
     """
     worker_id = self.worker_id or "unknown"
     
-    async def run_analysis():
-        """Inner async function to handle the analysis pipeline"""
+    def run_analysis():
+        """Synchronous analysis pipeline for Celery worker"""
         logger.info(f"Starting repository analysis for job {job_id}: {repository_url}")
         
         # Register job for timeout monitoring
@@ -66,18 +66,18 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
             timeout_manager.unregister_job_timeout(job_id, "failed_to_start")
             raise AnalysisError(f"Could not acquire lock for job {job_id}", job_id=job_id)
         
-        # Initialize analysis components
-        from ..security.repository_analyzer import RepositoryAnalyzer
-        from ..security.dependency_parser import DependencyParser
-        from ..security.vulnerability_scanner import VulnerabilityScanner
+        # Initialize analysis components with synchronous versions
+        from ..security.repository_analyzer_sync import SyncRepositoryAnalyzer
+        from ..security.dependency_parser_sync import SyncDependencyParser
+        from ..security.vulnerability_scanner_sync import SyncVulnerabilityScanner
         from ..security.scoring import SecurityScorer
         from ..security.reporting import ReportGenerator
-        from ..security.github_client import get_github_client
+        from ..security.github_client_sync import SyncGitHubClient
         
-        async def execute_stage(stage_name: str, stage_func, *args, **kwargs):
+        def execute_stage(stage_name: str, stage_func, *args, **kwargs):
             """Execute an analysis stage with error handling and retry logic"""
             try:
-                return await stage_func(*args, **kwargs)
+                return stage_func(*args, **kwargs)
             except Exception as e:
                 logger.error(f"Stage {stage_name} failed for job {job_id}: {e}")
                 # Use the task's intelligent retry logic
@@ -94,9 +94,12 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
             stage_message="Validating repository and extracting metadata..."
         )
         
-        async with RepositoryAnalyzer() as repo_analyzer:
-            repo_metadata = await repo_analyzer.analyze_repository(repository_url, owner, repo)
+        repo_analyzer = SyncRepositoryAnalyzer()
+        try:
+            repo_metadata = repo_analyzer.analyze_repository(repository_url, owner, repo)
             logger.info(f"Repository metadata extracted for {owner}/{repo}: {repo_metadata.last_commit_date}")
+        finally:
+            repo_analyzer.close()
         
         # Stage 2: Dependency scanning
         timeout_manager.update_job_heartbeat(job_id, "dependency_scanning")
@@ -107,9 +110,13 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
             stage_message="Scanning repository dependencies..."
         )
         
-        async with get_github_client() as github_client:
-            dependency_parser = DependencyParser(github_client)
-            dependencies = await dependency_parser.parse_repository_dependencies(owner, repo)
+        github_client = SyncGitHubClient()
+        try:
+            dependency_parser = SyncDependencyParser(github_client)
+            dependencies = dependency_parser.parse_repository_dependencies(owner, repo)
+        finally:
+            github_client.close()
+            
         logger.info(f"Found {len(dependencies)} dependencies in {owner}/{repo}")
         
         # Stage 3: Vulnerability scanning
@@ -125,7 +132,8 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         
         # Use the vulnerability scanner's batch processing capability
         if dependencies:
-            async with VulnerabilityScanner() as vuln_scanner:
+            vuln_scanner = SyncVulnerabilityScanner()
+            try:
                 # Process dependencies in batches for better progress tracking
                 batch_size = 10
                 total_deps = len(dependencies)
@@ -145,7 +153,7 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
                     
                     try:
                         # Scan batch of dependencies  
-                        batch_matches = await vuln_scanner.scan_dependencies(
+                        batch_matches = vuln_scanner.scan_dependencies(
                             batch_deps,
                             severity_filter=None,  # Use default (Critical and High)
                             include_low_confidence=False
@@ -175,6 +183,8 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
                     except Exception as e:
                         logger.warning(f"Failed to scan dependency batch {batch_start}-{batch_end}: {e}")
                         # Continue with next batch
+            finally:
+                vuln_scanner.close()
         
         logger.info(f"Found {len(vulnerabilities)} vulnerabilities in {owner}/{repo}")
         
@@ -234,10 +244,9 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
             "completed_at": datetime.utcnow().isoformat()
         }
     
-    # Run the async analysis function
+    # Run the synchronous analysis function
     try:
-        import asyncio
-        return asyncio.run(run_analysis())
+        return run_analysis()
         
     except Exception as e:
         # Ensure timeout monitoring is cleaned up on any error
@@ -281,21 +290,29 @@ def scan_dependencies_task(self, repository_url: str, owner: str, repo: str) -> 
     try:
         logger.info(f"Scanning dependencies for {owner}/{repo}")
         
-        dependency_parser = DependencyParser()
-        dependencies = dependency_parser.parse_repository_dependencies(repository_url, owner, repo)
+        # Use synchronous clients for Celery tasks
+        from ..security.github_client_sync import SyncGitHubClient
+        from ..security.dependency_parser_sync import SyncDependencyParser
         
-        result = [
-            {
-                "name": dep.name,
-                "version": dep.version,
-                "ecosystem": dep.ecosystem,
-                "file_path": dep.file_path
-            }
-            for dep in dependencies
-        ]
-        
-        logger.info(f"Found {len(result)} dependencies for {owner}/{repo}")
-        return result
+        github_client = SyncGitHubClient()
+        try:
+            dependency_parser = SyncDependencyParser(github_client)
+            dependencies = dependency_parser.parse_repository_dependencies(owner, repo)
+            
+            result = []
+            for dep_result in dependencies:
+                for dep in dep_result.dependencies:
+                    result.append({
+                        "name": dep.name,
+                        "version": dep.version,
+                        "ecosystem": dep_result.ecosystem.value,
+                        "file_path": dep_result.manifest_file
+                    })
+            
+            logger.info(f"Found {len(result)} dependencies for {owner}/{repo}")
+            return result
+        finally:
+            github_client.close()
         
     except Exception as e:
         logger.error(f"Dependency scanning failed for {owner}/{repo}: {e}")
@@ -316,36 +333,55 @@ def check_vulnerabilities_task(self, dependencies: List[Dict[str, Any]]) -> List
     try:
         logger.info(f"Checking vulnerabilities for {len(dependencies)} dependencies")
         
-        vuln_scanner = VulnerabilityScanner()
-        vulnerabilities = []
+        # Use synchronous vulnerability scanner for Celery tasks
+        from ..security.vulnerability_scanner_sync import SyncVulnerabilityScanner
+        from ..security.dependency_parser import ParsedDependency, PackageEcosystem
         
-        for dep_info in dependencies:
-            # Create dependency object
-            from ..models import DependencyData
-            dependency = DependencyData(
-                name=dep_info["name"],
-                version=dep_info["version"],
-                ecosystem=dep_info["ecosystem"],
-                file_path=dep_info["file_path"]
-            )
+        vuln_scanner = SyncVulnerabilityScanner()
+        try:
+            vulnerabilities = []
             
-            try:
-                dep_vulns = vuln_scanner.scan_dependency(dependency)
-                vulnerabilities.extend([
-                    {
-                        "cve_id": vuln.cve_id,
-                        "severity": vuln.severity,
-                        "score": vuln.cvss_score,
-                        "description": vuln.description,
-                        "affected_dependency": vuln.affected_dependency
-                    }
-                    for vuln in dep_vulns
-                ])
-            except Exception as e:
-                logger.warning(f"Failed to check vulnerabilities for {dep_info['name']}: {e}")
-        
-        logger.info(f"Found {len(vulnerabilities)} vulnerabilities")
-        return vulnerabilities
+            # Convert dependency info to ParsedDependency objects
+            parsed_deps = []
+            for dep_info in dependencies:
+                try:
+                    ecosystem = PackageEcosystem(dep_info["ecosystem"])
+                except ValueError:
+                    ecosystem = PackageEcosystem.NPM  # Default fallback
+                
+                dependency = ParsedDependency(
+                    name=dep_info["name"],
+                    version=dep_info["version"],
+                    ecosystem=ecosystem,
+                    file_path=dep_info["file_path"],
+                    is_dev_dependency=False,
+                    constraint="",
+                    source_line="",
+                    line_number=0
+                )
+                parsed_deps.append(dependency)
+            
+            # Scan for vulnerabilities
+            vuln_matches = vuln_scanner.scan_dependencies(parsed_deps)
+            
+            # Convert matches to response format
+            for match in vuln_matches:
+                if match.vulnerability_data:
+                    vulnerabilities.append({
+                        "cve_id": match.cve_id,
+                        "severity": match.vulnerability_data.severity.value if hasattr(match.vulnerability_data.severity, 'value') else str(match.vulnerability_data.severity),
+                        "score": match.vulnerability_data.cvss_score,
+                        "description": match.vulnerability_data.description,
+                        "affected_dependency": match.package_name,
+                        "confidence": match.confidence_score,
+                        "match_method": match.match_method
+                    })
+            
+            logger.info(f"Found {len(vulnerabilities)} vulnerabilities")
+            return vulnerabilities
+            
+        finally:
+            vuln_scanner.close()
         
     except Exception as e:
         logger.error(f"Vulnerability checking failed: {e}")
