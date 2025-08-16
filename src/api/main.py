@@ -243,13 +243,29 @@ async def initiate_analysis(
     
     This endpoint validates the repository URL and starts an asynchronous
     analysis job that will scan for vulnerabilities and calculate security scores.
+    Uses intelligent job queuing to prevent UI blocking and manage concurrency.
     
     The repository URL is automatically validated and normalized through dependency injection.
     """
     try:
+        # Import concurrency manager
+        from .jobs.concurrency_manager import get_concurrency_manager, JobPriority, WorkerPool
+        concurrency_manager = get_concurrency_manager()
+        
         # Validate and normalize the repository URL
         normalized_url = await validate_repository_url(request.repository_url)
         owner, repo = GitHubURLValidator.extract_owner_repo(normalized_url)
+        
+        # Extract user ID if available (for rate limiting)
+        user_id = getattr(request, 'user_id', None)
+        
+        # Check if we can accept the job
+        can_accept, reason = concurrency_manager.can_accept_job(user_id, WorkerPool.ANALYSIS)
+        
+        if not can_accept:
+            logger.warning(f"Job rejected for {normalized_url}: {reason}")
+            from .utils.exceptions import ResourceLimitError
+            raise ResourceLimitError(f"Cannot process analysis request: {reason}. Please try again later.")
         
         logger.info(f"Creating analysis job for repository: {normalized_url}")
         
@@ -261,7 +277,22 @@ async def initiate_analysis(
             repo=repo
         )
         
-        # Schedule background analysis task
+        # Queue the job for intelligent processing
+        job_queued = concurrency_manager.queue_job(
+            job_id=response.job_id,
+            task_name="analyze_repository",
+            priority=JobPriority.NORMAL,
+            worker_pool=WorkerPool.ANALYSIS,
+            user_id=user_id,
+            estimated_duration=300,  # 5 minutes estimate
+            metadata={
+                "repository_url": normalized_url,
+                "owner": owner,
+                "repo": repo
+            }
+        )
+        
+        # Schedule background analysis task (non-blocking)
         from .jobs.tasks import schedule_repository_analysis
         schedule_repository_analysis(
             job_id=response.job_id,
@@ -270,7 +301,23 @@ async def initiate_analysis(
             repo=repo
         )
         
-        logger.info(f"Analysis job {response.job_id} created for repository: {normalized_url}")
+        logger.info(f"Analysis job {response.job_id} created and queued for repository: {normalized_url}")
+        
+        # Enhance response with queue information if job was successfully queued
+        if job_queued:
+            queue_status = concurrency_manager.get_queue_status()
+            queue_position = queue_status["queue_lengths"].get("analysis", 0)
+            
+            # Add queue info to response (if the model supports it)
+            response_dict = response.dict()
+            response_dict["queue_info"] = {
+                "queued": True,
+                "position": queue_position,
+                "estimated_start_time": (datetime.utcnow() + timedelta(minutes=queue_position * 2)).isoformat(),
+                "concurrent_jobs": queue_status["active_jobs"]
+            }
+            return response_dict
+        
         return response
         
     except CaponierException:
@@ -841,6 +888,88 @@ async def clear_failure_history(job_id: str):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to clear failure history: {str(e)}"
+        )
+
+@app.get("/system/queue-status")
+async def get_queue_status():
+    """
+    Get comprehensive queue status and concurrency metrics
+    
+    Returns:
+        Queue status including active jobs, pool usage, and queue lengths
+    """
+    try:
+        from .jobs.concurrency_manager import get_concurrency_manager
+        
+        concurrency_manager = get_concurrency_manager()
+        status = concurrency_manager.get_queue_status()
+        
+        return {
+            "queue_status": status,
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting queue status: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get queue status: {str(e)}"
+        )
+
+@app.post("/system/queue-cleanup")
+async def cleanup_queue():
+    """
+    Manually trigger queue cleanup for stale jobs
+    
+    Returns:
+        Number of items cleaned up
+    """
+    try:
+        from .jobs.concurrency_manager import get_concurrency_manager
+        
+        concurrency_manager = get_concurrency_manager()
+        cleanup_count = concurrency_manager.cleanup_stale_jobs()
+        
+        return {
+            "message": f"Queue cleanup completed",
+            "items_cleaned": cleanup_count,
+            "cleaned_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error during queue cleanup: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to cleanup queue: {str(e)}"
+        )
+
+@app.get("/system/worker-pools")
+async def get_worker_pool_status():
+    """
+    Get detailed worker pool status and metrics
+    
+    Returns:
+        Worker pool utilization and performance metrics
+    """
+    try:
+        from .jobs.concurrency_manager import get_concurrency_manager
+        
+        concurrency_manager = get_concurrency_manager()
+        queue_status = concurrency_manager.get_queue_status()
+        
+        return {
+            "worker_pools": queue_status["pool_usage"],
+            "total_active_jobs": queue_status["active_jobs"],
+            "total_queued_jobs": sum(queue_status["queue_lengths"].values()),
+            "system_capacity": {
+                "max_concurrent": queue_status["max_concurrent"],
+                "current_utilization": round(queue_status["active_jobs"] / queue_status["max_concurrent"] * 100, 2)
+            },
+            "generated_at": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting worker pool status: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get worker pool status: {str(e)}"
         )
 
 # TODO: Add WebSocket endpoint for real-time progress updates (task 6.0)

@@ -473,6 +473,24 @@ class RateLimitError(CaponierException):
 
 
 # Exception mapping for HTTP status codes
+class ResourceLimitError(CaponierException):
+    """Exception raised when resource limits are exceeded (concurrency limits, user quotas, etc.)"""
+    
+    def __init__(self, message: str, limit_type: Optional[str] = None,
+                 current_usage: Optional[int] = None, limit_value: Optional[int] = None,
+                 retry_after: Optional[int] = None, original_error: Optional[Exception] = None):
+        super().__init__(
+            message=message,
+            error_code="RESOURCE_LIMIT_EXCEEDED",
+            status_code=429,
+            original_error=original_error
+        )
+        self.limit_type = limit_type
+        self.current_usage = current_usage
+        self.limit_value = limit_value
+        self.retry_after = retry_after  # Seconds to wait before retrying
+
+
 EXCEPTION_STATUS_MAP = {
     ValidationError: 422,
     RepositoryNotFoundError: 404,
@@ -487,6 +505,7 @@ EXCEPTION_STATUS_MAP = {
     NVDAPIError: 503,
     ConfigurationError: 500,
     RateLimitError: 429,
+    ResourceLimitError: 429,
     CaponierException: 500
 }
 
