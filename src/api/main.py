@@ -7,6 +7,9 @@ import logging
 import os
 from typing import Dict, Any, List
 
+# Import rate limiting
+from .security.rate_limiter import get_rate_limit_manager, rate_limit_exceeded_handler
+
 from .models import (
     AnalysisRequest, 
     AnalysisResponse, 
@@ -36,6 +39,9 @@ app = FastAPI(
     description="GitHub Repository Security Analysis Platform",
     version="1.0.0"
 )
+
+# Add rate limiting exception handler
+app.add_exception_handler(Exception, rate_limit_exceeded_handler)
 
 # CORS Configuration for Frontend Integration
 def configure_cors():
@@ -103,6 +109,21 @@ app.add_middleware(
     CORSMiddleware,
     **cors_settings
 )
+
+# Add rate limiting middleware
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    """Middleware to handle rate limiting and job tracking"""
+    response = await call_next(request)
+    
+    # Add rate limit headers to all responses
+    rate_limit_manager = get_rate_limit_manager()
+    rate_limit_headers = rate_limit_manager.get_rate_limit_headers(request)
+    
+    for header_name, header_value in rate_limit_headers.items():
+        response.headers[header_name] = header_value
+    
+    return response
 
 # Log CORS configuration for debugging
 logger.info("CORS Configuration Applied:")
@@ -236,7 +257,8 @@ async def cors_test(request: Request):
 @app.post("/analyze", response_model=AnalysisResponse)
 async def initiate_analysis(
     request: AnalysisRequest, 
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    http_request: Request
 ):
     """
     Initiate security analysis for a GitHub repository
@@ -248,6 +270,22 @@ async def initiate_analysis(
     The repository URL is automatically validated and normalized through dependency injection.
     """
     try:
+        # Check rate limits
+        rate_limit_manager = get_rate_limit_manager()
+        allowed, reason, retry_after = rate_limit_manager.check_rate_limit(http_request)
+        
+        if not allowed:
+            logger.warning(f"Rate limit exceeded: {reason}")
+            from .utils.exceptions import ResourceLimitError
+            raise ResourceLimitError(f"Rate limit exceeded: {reason}. Please try again later.")
+        
+        # Check concurrent jobs limit
+        can_accept_jobs, job_reason = rate_limit_manager.check_concurrent_jobs()
+        if not can_accept_jobs:
+            logger.warning(f"Concurrent jobs limit exceeded: {job_reason}")
+            from .utils.exceptions import ResourceLimitError
+            raise ResourceLimitError(f"Cannot process analysis request: {job_reason}. Please try again later.")
+        
         # Import concurrency manager
         from .jobs.concurrency_manager import get_concurrency_manager, JobPriority, WorkerPool
         concurrency_manager = get_concurrency_manager()
@@ -303,6 +341,9 @@ async def initiate_analysis(
         
         logger.info(f"Analysis job {response.job_id} created and queued for repository: {normalized_url}")
         
+        # Increment active jobs counter
+        rate_limit_manager.increment_active_jobs()
+        
         # Enhance response with queue information if job was successfully queued
         if job_queued:
             queue_status = concurrency_manager.get_queue_status()
@@ -316,9 +357,19 @@ async def initiate_analysis(
                 "estimated_start_time": (datetime.utcnow() + timedelta(minutes=queue_position * 2)).isoformat(),
                 "concurrent_jobs": queue_status["active_jobs"]
             }
+            
+            # Add rate limit headers
+            rate_limit_headers = rate_limit_manager.get_rate_limit_headers(http_request)
+            response_dict["rate_limit_info"] = rate_limit_headers
+            
             return response_dict
         
-        return response
+        # Add rate limit headers to response
+        rate_limit_headers = rate_limit_manager.get_rate_limit_headers(http_request)
+        response_dict = response.dict()
+        response_dict["rate_limit_info"] = rate_limit_headers
+        
+        return response_dict
         
     except CaponierException:
         # Re-raise custom exceptions - they will be handled by the global exception handler
