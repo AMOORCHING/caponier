@@ -18,6 +18,14 @@ from .dependency_parser import (
     DependencyParseResult,
     PackageEcosystem
 )
+from .secure_parser import (
+    secure_decode_base64_content,
+    validate_file_size,
+    SecurityError,
+    FileSizeError,
+    ParseTimeoutError,
+    SecureFileParser
+)
 from ..utils.exceptions import DependencyParsingError
 
 logger = logging.getLogger(__name__)
@@ -232,7 +240,7 @@ class SyncDependencyParser:
     
     def _get_file_content(self, owner: str, repo: str, file_path: str) -> Optional[str]:
         """
-        Get file content from repository
+        Get file content from repository with security validation
         
         Args:
             owner: Repository owner
@@ -241,62 +249,145 @@ class SyncDependencyParser:
             
         Returns:
             File content as string or None if not found
+            
+        Raises:
+            FileSizeError: If file exceeds size limits
+            SecurityError: If content cannot be safely decoded
         """
         try:
             file_data = self.github_client.get_file_content(owner, repo, file_path)
             
+            # Check file size from GitHub API metadata
+            file_size = file_data.get('size', 0)
+            if file_size > 10 * 1024 * 1024:  # 10MB limit
+                raise FileSizeError(
+                    f"File {file_path} size {file_size} bytes exceeds 10MB limit"
+                )
+            
             # GitHub API returns base64 encoded content
             if file_data.get('encoding') == 'base64':
-                content = base64.b64decode(file_data['content']).decode('utf-8')
+                # Use secure base64 decoding with size validation
+                content = secure_decode_base64_content(file_data['content'])
+                
+                # Additional validation after decoding
+                validate_file_size(content)
+                
+                logger.debug(f"Successfully retrieved and validated content for {file_path}")
                 return content
             
             # Handle direct content
             elif 'content' in file_data:
-                return file_data['content']
+                content = file_data['content']
+                validate_file_size(content)
+                return content
             
             return None
             
+        except (FileSizeError, SecurityError) as e:
+            logger.error(f"Security validation failed for {file_path}: {e}")
+            raise DependencyParsingError(file_path, str(e), PackageEcosystem.NPM)
         except Exception as e:
             logger.warning(f"Could not get content for {file_path}: {e}")
             return None
     
-    # Parser method delegates - these call the existing static parser methods
+    # Parser method delegates with security hardening
     def _parse_package_json(self, content: str, manifest_file: str) -> DependencyParseResult:
-        """Parse package.json content"""
-        return NodeJSDependencyParser.parse_package_json(content, manifest_file)
+        """Parse package.json content with security validation"""
+        try:
+            with SecureFileParser(content, 'json') as parser:
+                # Validate JSON structure first
+                parser.parse()  # This validates the JSON
+                # Then use the original parser
+                return NodeJSDependencyParser.parse_package_json(content, manifest_file)
+        except (SecurityError, FileSizeError, ParseTimeoutError) as e:
+            logger.error(f"Security validation failed for {manifest_file}: {e}")
+            raise DependencyParsingError(manifest_file, str(e), PackageEcosystem.NPM)
     
     def _parse_package_lock_json(self, content: str, manifest_file: str) -> DependencyParseResult:
-        """Parse package-lock.json content"""
-        return NodeJSDependencyParser.parse_package_lock_json(content, manifest_file)
+        """Parse package-lock.json content with security validation"""
+        try:
+            with SecureFileParser(content, 'json') as parser:
+                parser.parse()  # Validate JSON structure
+                return NodeJSDependencyParser.parse_package_lock_json(content, manifest_file)
+        except (SecurityError, FileSizeError, ParseTimeoutError) as e:
+            logger.error(f"Security validation failed for {manifest_file}: {e}")
+            raise DependencyParsingError(manifest_file, str(e), PackageEcosystem.NPM)
     
     def _parse_yarn_lock(self, content: str, manifest_file: str) -> DependencyParseResult:
-        """Parse yarn.lock content"""
-        return NodeJSDependencyParser.parse_yarn_lock(content, manifest_file)
+        """Parse yarn.lock content with security validation"""
+        try:
+            with SecureFileParser(content, 'text') as parser:
+                # yarn.lock is a custom format, validate as text
+                return NodeJSDependencyParser.parse_yarn_lock(content, manifest_file)
+        except (SecurityError, FileSizeError, ParseTimeoutError) as e:
+            logger.error(f"Security validation failed for {manifest_file}: {e}")
+            raise DependencyParsingError(manifest_file, str(e), PackageEcosystem.YARN)
     
     def _parse_requirements_txt(self, content: str, manifest_file: str) -> DependencyParseResult:
-        """Parse requirements.txt content"""
-        return PythonDependencyParser.parse_requirements_txt(content, manifest_file)
+        """Parse requirements.txt content with security validation"""
+        try:
+            with SecureFileParser(content, 'text') as parser:
+                return PythonDependencyParser.parse_requirements_txt(content, manifest_file)
+        except (SecurityError, FileSizeError, ParseTimeoutError) as e:
+            logger.error(f"Security validation failed for {manifest_file}: {e}")
+            raise DependencyParsingError(manifest_file, str(e), PackageEcosystem.PIP)
     
     def _parse_pipfile(self, content: str, manifest_file: str) -> DependencyParseResult:
-        """Parse Pipfile content"""
-        return PythonDependencyParser.parse_pipfile(content, manifest_file)
+        """Parse Pipfile content with security validation"""
+        try:
+            with SecureFileParser(content, 'toml') as parser:
+                parser.parse()  # Validate TOML structure
+                return PythonDependencyParser.parse_pipfile(content, manifest_file)
+        except (SecurityError, FileSizeError, ParseTimeoutError) as e:
+            logger.error(f"Security validation failed for {manifest_file}: {e}")
+            raise DependencyParsingError(manifest_file, str(e), PackageEcosystem.PIPENV)
     
     def _parse_poetry_lock(self, content: str, manifest_file: str) -> DependencyParseResult:
-        """Parse poetry.lock content"""
-        return PythonDependencyParser.parse_poetry_lock(content, manifest_file)
+        """Parse poetry.lock content with security validation"""
+        try:
+            with SecureFileParser(content, 'toml') as parser:
+                parser.parse()  # Validate TOML structure
+                return PythonDependencyParser.parse_poetry_lock(content, manifest_file)
+        except (SecurityError, FileSizeError, ParseTimeoutError) as e:
+            logger.error(f"Security validation failed for {manifest_file}: {e}")
+            raise DependencyParsingError(manifest_file, str(e), PackageEcosystem.POETRY)
     
     def _parse_cargo_toml(self, content: str, manifest_file: str) -> DependencyParseResult:
-        """Parse Cargo.toml content"""
-        return RustDependencyParser.parse_cargo_toml(content, manifest_file)
+        """Parse Cargo.toml content with security validation"""
+        try:
+            with SecureFileParser(content, 'toml') as parser:
+                parser.parse()  # Validate TOML structure
+                return RustDependencyParser.parse_cargo_toml(content, manifest_file)
+        except (SecurityError, FileSizeError, ParseTimeoutError) as e:
+            logger.error(f"Security validation failed for {manifest_file}: {e}")
+            raise DependencyParsingError(manifest_file, str(e), PackageEcosystem.CARGO)
     
     def _parse_cargo_lock(self, content: str, manifest_file: str) -> DependencyParseResult:
-        """Parse Cargo.lock content"""
-        return RustDependencyParser.parse_cargo_lock(content, manifest_file)
+        """Parse Cargo.lock content with security validation"""
+        try:
+            with SecureFileParser(content, 'toml') as parser:
+                parser.parse()  # Validate TOML structure
+                return RustDependencyParser.parse_cargo_lock(content, manifest_file)
+        except (SecurityError, FileSizeError, ParseTimeoutError) as e:
+            logger.error(f"Security validation failed for {manifest_file}: {e}")
+            raise DependencyParsingError(manifest_file, str(e), PackageEcosystem.CARGO)
     
     def _parse_pom_xml(self, content: str, manifest_file: str) -> DependencyParseResult:
-        """Parse pom.xml content"""
-        return JavaDependencyParser.parse_pom_xml(content, manifest_file)
+        """Parse pom.xml content with security validation"""
+        try:
+            with SecureFileParser(content, 'xml') as parser:
+                parser.parse()  # Validate XML structure with defusedxml
+                return JavaDependencyParser.parse_pom_xml(content, manifest_file)
+        except (SecurityError, FileSizeError, ParseTimeoutError) as e:
+            logger.error(f"Security validation failed for {manifest_file}: {e}")
+            raise DependencyParsingError(manifest_file, str(e), PackageEcosystem.MAVEN)
     
     def _parse_build_gradle(self, content: str, manifest_file: str) -> DependencyParseResult:
-        """Parse build.gradle content"""
-        return JavaDependencyParser.parse_build_gradle(content, manifest_file)
+        """Parse build.gradle content with security validation"""
+        try:
+            with SecureFileParser(content, 'text') as parser:
+                # Gradle files are Groovy/Kotlin, validate as text
+                return JavaDependencyParser.parse_build_gradle(content, manifest_file)
+        except (SecurityError, FileSizeError, ParseTimeoutError) as e:
+            logger.error(f"Security validation failed for {manifest_file}: {e}")
+            raise DependencyParsingError(manifest_file, str(e), PackageEcosystem.GRADLE)

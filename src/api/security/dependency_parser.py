@@ -340,10 +340,16 @@ class PythonDependencyParser:
         if '#' in line:
             line = line.split('#')[0].strip()
         
-        # Parse the requirement using regex
-        # Pattern matches: package_name[extras]version_spec
-        pattern = r'^([a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]|\b[a-zA-Z0-9]\b)(\[[^\]]*\])?(.*)'
-        match = re.match(pattern, line.strip())
+        # Parse the requirement using safe regex
+        # Use safe regex pattern for Python requirements
+        try:
+            from .secure_parser import safe_regex_match, get_safe_regex_pattern
+            pattern = get_safe_regex_pattern('python_requirement')
+            match = safe_regex_match(pattern, line.strip())
+        except (ImportError, ValueError):
+            # Fallback to original pattern if secure parser not available
+            pattern = r'^([a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]|\b[a-zA-Z0-9]\b)(\[[^\]]*\])?(.*)'
+            match = re.match(pattern, line.strip())
         
         if not match:
             return None
@@ -428,9 +434,16 @@ class PythonDependencyParser:
             # Take the first constraint
             constraint = constraint.split(',')[0].strip()
         
-        # Remove operators and extract version
-        version = re.sub(r'^[~!<>=\s]+', '', constraint)
-        version = re.sub(r'[<>=\s].*$', '', version)
+        # Remove operators and extract version using safer approach
+        try:
+            from .secure_parser import safe_regex_findall
+            # Use findall to extract version part safely
+            version_parts = safe_regex_findall(r'[0-9][a-zA-Z0-9._-]*', constraint)
+            version = version_parts[0] if version_parts else "unknown"
+        except ImportError:
+            # Fallback to original pattern
+            version = re.sub(r'^[~!<>=\s]+', '', constraint)
+            version = re.sub(r'[<>=\s].*$', '', version)
         
         # Clean up the version
         version = version.strip()
@@ -737,15 +750,21 @@ class JavaDependencyParser:
             Dependency parse result
         """
         try:
-            if ET is None:
-                raise DependencyParsingError(
-                    manifest_file,
-                    "XML library not available for pom.xml parsing",
-                    PackageEcosystem.MAVEN
-                )
-            
-            # Parse XML content
-            root = ET.fromstring(content)
+            # Use secure XML parsing
+            try:
+                from .secure_parser import secure_xml_parse
+                root = secure_xml_parse(content)
+            except ImportError:
+                # Fallback to standard library if secure parser not available
+                if ET is None:
+                    raise DependencyParsingError(
+                        manifest_file,
+                        "XML library not available for pom.xml parsing",
+                        PackageEcosystem.MAVEN
+                    )
+                
+                logger.warning("Secure XML parser not available, using standard XML parser")
+                root = ET.fromstring(content)
             
             # Define Maven namespace
             namespace = {'maven': 'http://maven.apache.org/POM/4.0.0'}
@@ -962,7 +981,11 @@ class JavaDependencyParser:
         ]
         
         for pattern in patterns:
-            match = re.search(pattern, line)
+            try:
+                from .secure_parser import safe_regex_match
+                match = safe_regex_match(pattern, line)
+            except ImportError:
+                match = re.search(pattern, line)
             if match:
                 groups = match.groups()
                 if len(groups) == 4:
@@ -1844,11 +1867,10 @@ class DependencyParser:
                 
                 # For other errors, wrap in analysis error
                 logger.error(f"Failed to discover dependency files for {owner}/{repo}: {str(discovery_error)}")
-                raise AnalysisError(
-                    f"Failed to discover dependency files in repository",
-                    job_id=f"{owner}/{repo}",
-                    stage="file_discovery",
-                    original_error=discovery_error
+                raise DependencyParsingError(
+                    f"{owner}/{repo}",
+                    f"Failed to discover dependency files in repository: {str(discovery_error)}",
+                    PackageEcosystem.NPM
                 )
             
             # Parse each found dependency file

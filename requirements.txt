@@ -29,6 +29,10 @@ validators==0.22.0
 toml==0.10.2
 PyYAML==6.0.1
 
+# Security hardening
+defusedxml==0.7.1
+timeout-decorator==0.5.0
+
 # Rate limiting support
 slowapi==0.1.9
 
