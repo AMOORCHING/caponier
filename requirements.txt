@@ -5,7 +5,9 @@ pydantic>=2.4.2
 
 # HTTP client for external API calls
 httpx>=0.26.0
-requests==2.31.0
+
+# Circuit breaker pattern
+pybreaker==1.0.2
 
 # Async job processing and task queue
 celery==5.3.4

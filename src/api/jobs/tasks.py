@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 job_manager = JobManager(redis_manager)
 
 
-@celery_app.task(bind=True, base=CaponierTask, name='caponier.analysis.analyze_repository')
+@celery_app.task(bind=True, base=CaponierTask, name='caponier.analysis.analyze_repository', time_limit=300, soft_time_limit=270)
 def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, repo: str) -> Dict[str, Any]:
     """
     Main task for complete repository security analysis
@@ -56,14 +56,10 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         """Synchronous analysis pipeline for Celery worker"""
         logger.info(f"Starting repository analysis for job {job_id}: {repository_url}")
         
-        # Register job for timeout monitoring
-        from .timeout_manager import get_timeout_manager
-        timeout_manager = get_timeout_manager()
-        timeout_manager.register_job_timeout(job_id, worker_id)
+
 
         # Start job processing
         if not job_manager.start_job_processing(job_id, worker_id):
-            timeout_manager.unregister_job_timeout(job_id, "failed_to_start")
             raise AnalysisError(f"Could not acquire lock for job {job_id}", job_id=job_id)
         
         # Initialize analysis components with synchronous versions
@@ -86,7 +82,6 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
                 raise
         
         # Stage 1: Repository validation and metadata extraction
-        timeout_manager.update_job_heartbeat(job_id, "repository_validation")
         job_manager.update_job_progress(
             job_id=job_id,
             progress_percentage=10,
@@ -102,7 +97,6 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
             repo_analyzer.close()
         
         # Stage 2: Dependency scanning
-        timeout_manager.update_job_heartbeat(job_id, "dependency_scanning")
         job_manager.update_job_progress(
             job_id=job_id,
             progress_percentage=25,
@@ -120,7 +114,6 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         logger.info(f"Found {len(dependencies)} dependencies in {owner}/{repo}")
         
         # Stage 3: Vulnerability scanning
-        timeout_manager.update_job_heartbeat(job_id, "vulnerability_lookup")
         job_manager.update_job_progress(
             job_id=job_id,
             progress_percentage=50,
@@ -189,7 +182,6 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         logger.info(f"Found {len(vulnerabilities)} vulnerabilities in {owner}/{repo}")
         
         # Stage 4: Security scoring
-        timeout_manager.update_job_heartbeat(job_id, "scoring_calculation")
         job_manager.update_job_progress(
             job_id=job_id,
             progress_percentage=85,
@@ -207,7 +199,6 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         logger.info(f"Security score calculated for {owner}/{repo}: {security_score.overall_score}")
         
         # Stage 5: Report generation
-        timeout_manager.update_job_heartbeat(job_id, "report_generation")
         job_manager.update_job_progress(
             job_id=job_id,
             progress_percentage=95,
@@ -230,9 +221,6 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         # Complete the job
         job_manager.complete_job(job_id, worker_id, analysis_result)
         
-        # Unregister from timeout monitoring
-        timeout_manager.unregister_job_timeout(job_id, "completed")
-        
         logger.info(f"Completed repository analysis for job {job_id}: {repository_url}")
         
         return {
@@ -249,13 +237,6 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         return run_analysis()
         
     except Exception as e:
-        # Ensure timeout monitoring is cleaned up on any error
-        try:
-            from .timeout_manager import get_timeout_manager
-            timeout_manager = get_timeout_manager()
-            timeout_manager.unregister_job_timeout(job_id, "error")
-        except:
-            pass  # Don't let cleanup errors mask the original error
         logger.error(f"Repository analysis failed for job {job_id}: {e}")
         logger.error(f"Traceback: {traceback.format_exc()}")
         
@@ -274,7 +255,7 @@ def analyze_repository_task(self, job_id: str, repository_url: str, owner: str, 
         raise AnalysisError(f"Repository analysis failed: {str(e)}", job_id=job_id)
 
 
-@celery_app.task(bind=True, base=CaponierTask, name='caponier.analysis.scan_dependencies')
+@celery_app.task(bind=True, base=CaponierTask, name='caponier.analysis.scan_dependencies', time_limit=120, soft_time_limit=100)
 def scan_dependencies_task(self, repository_url: str, owner: str, repo: str) -> List[Dict[str, Any]]:
     """
     Task for scanning repository dependencies
@@ -319,7 +300,7 @@ def scan_dependencies_task(self, repository_url: str, owner: str, repo: str) -> 
         raise
 
 
-@celery_app.task(bind=True, base=CaponierTask, name='caponier.analysis.check_vulnerabilities')
+@celery_app.task(bind=True, base=CaponierTask, name='caponier.analysis.check_vulnerabilities', time_limit=180, soft_time_limit=150)
 def check_vulnerabilities_task(self, dependencies: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Task for checking vulnerabilities in dependencies
@@ -388,7 +369,7 @@ def check_vulnerabilities_task(self, dependencies: List[Dict[str, Any]]) -> List
         raise
 
 
-@celery_app.task(bind=True, base=CaponierTask, name='caponier.maintenance.cleanup_jobs')
+@celery_app.task(bind=True, base=CaponierTask, name='caponier.maintenance.cleanup_jobs', time_limit=60, soft_time_limit=45)
 def cleanup_jobs_task(self) -> Dict[str, Any]:
     """
     Maintenance task for cleaning up expired jobs and data
@@ -415,7 +396,7 @@ def cleanup_jobs_task(self) -> Dict[str, Any]:
         raise
 
 
-@celery_app.task(bind=True, base=CaponierTask, name='caponier.monitoring.health_check')
+@celery_app.task(bind=True, base=CaponierTask, name='caponier.monitoring.health_check', time_limit=30, soft_time_limit=25)
 def health_check_task(self) -> Dict[str, Any]:
     """
     Health check task for monitoring worker status
@@ -446,7 +427,7 @@ def health_check_task(self) -> Dict[str, Any]:
         }
 
 
-@celery_app.task(bind=True, base=CaponierTask, name='caponier.test.simple_test')
+@celery_app.task(bind=True, base=CaponierTask, name='caponier.test.simple_test', time_limit=60, soft_time_limit=45)
 def simple_test_task(self, test_data: str = "Hello from Celery!") -> Dict[str, Any]:
     """
     Simple test task to verify Celery is working

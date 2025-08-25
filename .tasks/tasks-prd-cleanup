@@ -1,0 +1,46 @@
+# Product Requirements Document: Quick Architecture Cleanup
+
+## Introduction/Overview
+
+This PRD covers the final cleanup of custom implementations that should be replaced with standard libraries. This is quick, low-risk work that eliminates technical debt and reduces maintenance burden.
+
+**Time Estimate: 2-3 hours total**
+
+## Task List
+
+### Task 1: Remove Custom Timeout Manager (1 hour)
+- [x] 1.1 Add `pybreaker==1.0.2` to `requirements.txt`
+- [x] 1.2 Delete `src/api/jobs/timeout_manager.py`
+- [x] 1.3 Remove `get_timeout_manager()` calls from `src/api/jobs/tasks.py`
+- [x] 1.4 Add Celery timeout parameters to task definitions in `src/api/jobs/tasks.py`
+- [x] 1.5 Remove timeout monitoring endpoints from `src/api/main.py`
+
+### Task 2: Replace Custom Circuit Breaker (1 hour)  
+- [ ] 2.1 Delete `src/api/security/circuit_breaker.py`
+- [ ] 2.2 Replace circuit breaker usage with `pybreaker` in affected files
+- [ ] 2.3 Update imports throughout codebase
+
+### Task 3: HTTP Client Cleanup (30 minutes)
+- [ ] 3.1 Remove `requests==2.31.0` from `requirements.txt`
+- [ ] 3.2 Search codebase for any remaining `import requests` and replace with `httpx`
+- [ ] 3.3 Ensure all sync HTTP calls use `httpx.Client()` and async calls use `httpx.AsyncClient()`
+
+## Relevant Files
+- `requirements.txt` - Added pybreaker dependency, removed requests
+- `src/api/jobs/timeout_manager.py` - Deleted (replaced with Celery built-ins)
+- `src/api/jobs/tasks.py` - Removed timeout manager calls and imports, added Celery timeout parameters
+- `src/api/main.py` - Removed timeout monitoring endpoints
+
+## Success Criteria
+1. All tests pass (or no new test failures if no tests exist)
+2. Application starts successfully
+3. Analysis tasks complete within Celery timeout limits
+4. External API calls use pybreaker circuit breaker pattern
+5. Only `httpx` library used for HTTP requests
+
+## Risk Assessment
+**Low Risk** - These are isolated changes that replace working implementations with proven libraries. The existing functionality will be preserved.
+
+---
+
+**This can be done in a single focused session while your current MVP work continues in parallel.**
