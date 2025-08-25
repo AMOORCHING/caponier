@@ -15,15 +15,15 @@ This PRD covers the final cleanup of custom implementations that should be repla
 - [x] 1.4 Add Celery timeout parameters to task definitions in `src/api/jobs/tasks.py`
 - [x] 1.5 Remove timeout monitoring endpoints from `src/api/main.py`
 
-### Task 2: Replace Custom Circuit Breaker (1 hour)  
+### Task 2: Replace Custom Circuit Breaker (1 hour) ✅
 - [x] 2.1 Delete `src/api/security/circuit_breaker.py`
 - [x] 2.2 Replace circuit breaker usage with `pybreaker` in affected files
 - [x] 2.3 Update imports throughout codebase
 
 ### Task 3: HTTP Client Cleanup (30 minutes)
-- [ ] 3.1 Remove `requests==2.31.0` from `requirements.txt`
-- [ ] 3.2 Search codebase for any remaining `import requests` and replace with `httpx`
-- [ ] 3.3 Ensure all sync HTTP calls use `httpx.Client()` and async calls use `httpx.AsyncClient()`
+- [x] 3.1 Remove `requests==2.31.0` from `requirements.txt`
+- [x] 3.2 Search codebase for any remaining `import requests` and replace with `httpx`
+- [x] 3.3 Ensure all sync HTTP calls use `httpx.Client()` and async calls use `httpx.AsyncClient()`
 
 ## Relevant Files
 - `requirements.txt` - Added pybreaker dependency, removed requests
@@ -35,6 +35,9 @@ This PRD covers the final cleanup of custom implementations that should be repla
 - `tests/test_circuit_breaker.py` - Updated to use pybreaker instead of custom implementation
 - `src/api/utils/exceptions.py` - Removed custom CircuitBreakerError class
 - `src/api/security/github_client_sync.py` - Removed CircuitBreakerError import
+- `verify_installation.py` - Removed requests import and version check
+- `src/api/security/vulnerability_scanner_sync.py` - Replaced requests with httpx
+- `src/api/security/github_client_sync.py` - Replaced requests with httpx
 
 ## Success Criteria
 1. All tests pass (or no new test failures if no tests exist)

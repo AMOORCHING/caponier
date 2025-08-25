@@ -12,7 +12,7 @@ import time
 from typing import Dict, Any, Optional, List, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass
-import requests
+import httpx
 from cachetools import TTLCache
 
 from ..utils.exceptions import (
@@ -75,8 +75,8 @@ class SyncGitHubClient:
         self.timeout = timeout
         self.max_retries = max_retries
         
-        # Setup session with headers
-        self.session = requests.Session()
+        # Setup client with headers
+        self.client = httpx.Client()
         headers = {
             "Accept": "application/vnd.github.v3+json",
             "User-Agent": "Caponier-Security-Scanner/1.0"
@@ -88,7 +88,7 @@ class SyncGitHubClient:
         else:
             logger.warning("Sync GitHub client initialized without token - rate limits will be lower")
         
-        self.session.headers.update(headers)
+        self.client.headers.update(headers)
         
         # Rate limiting tracking
         self.rate_limit_info: Optional[RateLimitInfo] = None
@@ -106,9 +106,9 @@ class SyncGitHubClient:
         }
     
     def close(self):
-        """Close the session"""
-        if self.session:
-            self.session.close()
+        """Close the client"""
+        if self.client:
+            self.client.close()
     
     def _update_rate_limit_info(self, headers: Dict[str, str]):
         """Update rate limit information from response headers"""
@@ -194,7 +194,7 @@ class SyncGitHubClient:
                 self.stats["requests_made"] += 1
                 
                 # Make the request
-                response = self.session.request(
+                response = self.client.request(
                     method=method,
                     url=url,
                     params=params,
@@ -277,7 +277,7 @@ class SyncGitHubClient:
                         details=error_data
                     )
                     
-            except requests.exceptions.RequestException as e:
+            except httpx.RequestError as e:
                 if retry_count < self.max_retries:
                     wait_time = 2 ** retry_count
                     logger.warning(

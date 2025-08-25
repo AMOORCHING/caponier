@@ -20,11 +20,9 @@ def check_imports():
         print(f"✅ Uvicorn {uvicorn.__version__}")
         print(f"✅ Pydantic {pydantic.__version__}")
         
-        # HTTP clients
+        # HTTP client
         import httpx
-        import requests
         print(f"✅ HTTPX {httpx.__version__}")
-        print(f"✅ Requests {requests.__version__}")
         
         # Job processing
         import celery
