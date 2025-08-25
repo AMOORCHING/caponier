@@ -20,7 +20,7 @@ This PRD covers the final cleanup of custom implementations that should be repla
 - [x] 2.2 Replace circuit breaker usage with `pybreaker` in affected files
 - [x] 2.3 Update imports throughout codebase
 
-### Task 3: HTTP Client Cleanup (30 minutes)
+### Task 3: HTTP Client Cleanup (30 minutes) ✅
 - [x] 3.1 Remove `requests==2.31.0` from `requirements.txt`
 - [x] 3.2 Search codebase for any remaining `import requests` and replace with `httpx`
 - [x] 3.3 Ensure all sync HTTP calls use `httpx.Client()` and async calls use `httpx.AsyncClient()`
