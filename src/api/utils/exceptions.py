@@ -385,19 +385,7 @@ class RateLimitError(ExternalServiceError):
             self.details["retry_after_seconds"] = retry_after
 
 
-class CircuitBreakerError(ExternalServiceError):
-    """
-    Raised when circuit breaker is open or half-open limit exceeded
-    
-    Indicates that calls are being rejected to protect against cascade failures.
-    """
-    
-    def __init__(self, message: str, service: str = "External Service", circuit_state: str = "unknown"):
-        super().__init__(message, service)
-        self.error_code = "CIRCUIT_BREAKER_OPEN"
-        self.http_status_code = 503  # Service Unavailable
-        self.details["circuit_state"] = circuit_state
-        self.details["retry_recommended"] = circuit_state == "half_open"
+
 
 
 class GitHubAPIError(ExternalServiceError):

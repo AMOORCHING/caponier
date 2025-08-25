@@ -8,7 +8,7 @@ This PRD covers the final cleanup of custom implementations that should be repla
 
 ## Task List
 
-### Task 1: Remove Custom Timeout Manager (1 hour)
+### Task 1: Remove Custom Timeout Manager (1 hour) ✅
 - [x] 1.1 Add `pybreaker==1.0.2` to `requirements.txt`
 - [x] 1.2 Delete `src/api/jobs/timeout_manager.py`
 - [x] 1.3 Remove `get_timeout_manager()` calls from `src/api/jobs/tasks.py`
@@ -16,9 +16,9 @@ This PRD covers the final cleanup of custom implementations that should be repla
 - [x] 1.5 Remove timeout monitoring endpoints from `src/api/main.py`
 
 ### Task 2: Replace Custom Circuit Breaker (1 hour)  
-- [ ] 2.1 Delete `src/api/security/circuit_breaker.py`
-- [ ] 2.2 Replace circuit breaker usage with `pybreaker` in affected files
-- [ ] 2.3 Update imports throughout codebase
+- [x] 2.1 Delete `src/api/security/circuit_breaker.py`
+- [x] 2.2 Replace circuit breaker usage with `pybreaker` in affected files
+- [x] 2.3 Update imports throughout codebase
 
 ### Task 3: HTTP Client Cleanup (30 minutes)
 - [ ] 3.1 Remove `requests==2.31.0` from `requirements.txt`
@@ -30,6 +30,11 @@ This PRD covers the final cleanup of custom implementations that should be repla
 - `src/api/jobs/timeout_manager.py` - Deleted (replaced with Celery built-ins)
 - `src/api/jobs/tasks.py` - Removed timeout manager calls and imports, added Celery timeout parameters
 - `src/api/main.py` - Removed timeout monitoring endpoints
+- `src/api/security/circuit_breaker.py` - Deleted (replaced with pybreaker)
+- `src/api/security/github_client.py` - Removed unused circuit breaker import
+- `tests/test_circuit_breaker.py` - Updated to use pybreaker instead of custom implementation
+- `src/api/utils/exceptions.py` - Removed custom CircuitBreakerError class
+- `src/api/security/github_client_sync.py` - Removed CircuitBreakerError import
 
 ## Success Criteria
 1. All tests pass (or no new test failures if no tests exist)

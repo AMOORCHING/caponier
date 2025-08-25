@@ -21,8 +21,7 @@ from ..utils.exceptions import (
     RepositoryNotFoundError, 
     RepositoryPrivateError,
     RepositoryAccessDeniedError,
-    ExternalServiceError,
-    CircuitBreakerError
+    ExternalServiceError
 )
 from ..models import RepositoryMetadata
 

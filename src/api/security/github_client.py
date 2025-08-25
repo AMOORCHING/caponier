@@ -26,10 +26,9 @@ from ..utils.exceptions import (
     RepositoryNotFoundError, 
     RepositoryPrivateError,
     RepositoryAccessDeniedError,
-    ExternalServiceError,
-    CircuitBreakerError
+    ExternalServiceError
 )
-from .circuit_breaker import CircuitBreakerConfig, get_circuit_breaker
+
 from ..models import RepositoryMetadata
 
 logger = logging.getLogger(__name__)
