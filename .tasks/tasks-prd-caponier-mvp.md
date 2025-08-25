@@ -94,14 +94,14 @@ Based on PRD: `prd-caponier-mvp.md`
   - [x] 5.7 Add error handling and retry logic for failed analysis tasks
   - [x] 5.8 Implement concurrent job processing without UI blocking
 
-- [ ] 6.0 Implement Real-time Progress Updates via WebSocket
-  - [ ] 6.1 Set up WebSocket connection handling in FastAPI
-  - [ ] 6.2 Create progress update events for analysis stages
-  - [ ] 6.3 Implement progress broadcasting to connected clients
-  - [ ] 6.4 Add granular progress messages ("Scanning dependencies...", "Checking vulnerabilities...")
-  - [ ] 6.5 Handle WebSocket disconnections and reconnection logic
-  - [ ] 6.6 Ensure progress updates are delivered within 2 seconds of status changes
-  - [ ] 6.7 Add WebSocket authentication and job ID validation
+- [x] 6.0 Implement Real-time Progress Updates via WebSocket
+  - [x] 6.1 Set up WebSocket connection handling in FastAPI
+  - [x] 6.2 Create progress update events for analysis stages
+  - [x] 6.3 Implement progress broadcasting to connected clients
+  - [x] 6.4 Add granular progress messages ("Scanning dependencies...", "Checking vulnerabilities...")
+  - [x] 6.5 Handle WebSocket disconnections and reconnection logic
+  - [x] 6.6 Ensure progress updates are delivered within 2 seconds of status changes
+  - [x] 6.7 Add WebSocket authentication and job ID validation
 
 - [ ] 7.0 Build Frontend Single-Page Application with Next.js
   - [ ] 7.1 Initialize Next.js project with TypeScript and Tailwind CSS
@@ -133,7 +133,7 @@ Based on PRD: `prd-caponier-mvp.md`
   - [ ] 9.8 Create docker-compose.yml for local development environment
 
 ## Relevant Files
-- `src/api/main.py` - Main FastAPI application with health check and analysis endpoints
+- `src/api/main.py` - Main FastAPI application with health check, analysis endpoints, and WebSocket support
 - `src/api/models.py` - Pydantic models for API requests/responses, including VulnerabilityData, AnalysisResult, SecurityScore
 - `src/api/utils/validators.py` - Repository URL validation with GitHub API verification
 - `src/api/utils/exceptions.py` - Custom exception hierarchy for structured error handling
@@ -146,6 +146,11 @@ Based on PRD: `prd-caponier-mvp.md`
 - `src/api/security/vulnerability_enrichment.py` - CVSS analysis and impact details for vulnerabilities
 - `src/api/security/scoring.py` - Security scoring algorithm with weighted vulnerability scoring and reporting
 - `src/api/security/reporting.py` - Detailed analysis report structure with multiple export formats
-- `requirements.txt` - Python dependencies with version constraints
+- `src/api/websocket/__init__.py` - WebSocket module initialization
+- `src/api/websocket/progress.py` - WebSocket progress manager for real-time analysis updates
+- `src/api/websocket/progress_events.py` - Progress event definitions and factory for structured updates
+- `src/api/websocket/auth.py` - WebSocket authentication and job ID validation system
+- `src/api/jobs/job_manager.py` - Job management with integrated WebSocket progress updates
+- `requirements.txt` - Python dependencies with version constraints and pydantic-settings
 - `requirements-dev.txt` - Development dependencies for testing and code quality
 - `Dockerfile.api` - Docker configuration for API service deployment

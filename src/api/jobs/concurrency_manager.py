@@ -16,7 +16,7 @@ import time
 
 from ..config import RedisManager, app_config
 from ..models import JobStatus
-from ..utils.exceptions import JobError, JobStorageError
+from ..utils.exceptions import JobError
 
 logger = logging.getLogger(__name__)
 

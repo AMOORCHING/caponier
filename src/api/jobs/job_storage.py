@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from ..models import JobStatus, AnalysisResult, AnalysisProgress
 from ..config import RedisManager, redis_config
-from ..utils.exceptions import JobNotFoundError, JobStorageError
+from ..utils.exceptions import JobNotFoundError
 
 logger = logging.getLogger(__name__)
 

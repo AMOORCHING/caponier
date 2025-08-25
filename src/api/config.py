@@ -7,7 +7,8 @@ for job queue management and asynchronous processing.
 
 import os
 from typing import Optional
-from pydantic import BaseSettings, Field, validator
+from pydantic import Field, validator
+from pydantic_settings import BaseSettings
 import redis
 from celery import Celery
 import logging

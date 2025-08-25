@@ -17,7 +17,7 @@ import base64
 
 from ..models import AnalysisResult, JobStatus
 from ..config import RedisManager, redis_config
-from ..utils.exceptions import JobNotFoundError, JobStorageError
+from ..utils.exceptions import JobNotFoundError
 from .job_storage import JobStorageKeys
 
 logger = logging.getLogger(__name__)

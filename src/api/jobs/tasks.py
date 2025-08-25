@@ -22,7 +22,7 @@ from ..security.dependency_parser import DependencyParser
 from ..security.vulnerability_scanner import VulnerabilityScanner
 from ..security.scoring import SecurityScorer
 from ..security.reporting import ReportGenerator
-from ..utils.exceptions import AnalysisError, RepositoryError, VulnerabilityError
+from ..utils.exceptions import AnalysisError, RepositoryError, VulnerabilityLookupError
 
 logger = logging.getLogger(__name__)
 

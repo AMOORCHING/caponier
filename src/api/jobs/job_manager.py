@@ -5,13 +5,14 @@ Handles job lifecycle, status tracking, and coordination between API and workers
 """
 
 import logging
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 import uuid
 
 from ..models import JobStatus, AnalysisResult, AnalysisProgress, AnalysisRequest, AnalysisResponse
 from ..config import RedisManager, app_config
-from ..utils.exceptions import JobNotFoundError, JobStorageError, JobError
+from ..utils.exceptions import JobNotFoundError, JobError
 from .job_storage import JobStorage, JobMetadata
 
 logger = logging.getLogger(__name__)
@@ -188,6 +189,7 @@ class JobManager:
             estimated_completion: Estimated completion time
         """
         try:
+            # Update storage
             self.job_storage.update_job_progress(
                 job_id=job_id,
                 progress_percentage=progress_percentage,
@@ -195,9 +197,95 @@ class JobManager:
                 stage_message=stage_message,
                 estimated_completion=estimated_completion
             )
+            
+            # Send WebSocket update
+            self._send_websocket_progress(job_id, progress_percentage, current_stage, stage_message)
+            
         except Exception as e:
             logger.error(f"Error updating job progress for {job_id}: {e}")
             # Don't raise here - progress updates shouldn't fail the job
+    
+    def _send_websocket_progress(self, job_id: str, progress_percentage: int, 
+                                current_stage: str, stage_message: str) -> None:
+        """
+        Send progress update via WebSocket
+        
+        Args:
+            job_id: Job identifier
+            progress_percentage: Completion percentage (0-100)
+            current_stage: Current processing stage
+            stage_message: Detailed stage message
+        """
+        try:
+            # Import here to avoid circular imports
+            from ..websocket.progress import websocket_manager
+            from ..websocket.progress_events import ProgressEventFactory, AnalysisStage
+            
+            # Try to create a structured progress event based on the stage
+            progress_event = None
+            
+            # Map stage names to progress events
+            if current_stage == "initialization":
+                progress_event = ProgressEventFactory.initialization(job_id)
+            elif current_stage == "repository_validation":
+                # Extract repository info from message if possible
+                progress_event = ProgressEventFactory.repository_validation(
+                    repository_url="", owner="", repo=""
+                )
+            elif current_stage == "dependency_scanning":
+                progress_event = ProgressEventFactory.dependency_scanning(owner="", repo="")
+            elif current_stage == "dependency_parsing":
+                progress_event = ProgressEventFactory.dependency_parsing(ecosystem="", file_count=0)
+            elif current_stage == "vulnerability_lookup":
+                # Try to extract dependency count from message
+                import re
+                match = re.search(r'(\d+) dependencies', stage_message)
+                dependency_count = int(match.group(1)) if match else 0
+                progress_event = ProgressEventFactory.vulnerability_lookup(dependency_count)
+            elif current_stage == "vulnerability_scanning":
+                progress_event = ProgressEventFactory.vulnerability_scanning_batch(
+                    batch_number=1, total_batches=1, batch_size=0, vulnerabilities_found=0
+                )
+            elif current_stage == "cve_enrichment":
+                progress_event = ProgressEventFactory.cve_enrichment(vulnerability_count=0)
+            elif current_stage == "scoring_calculation":
+                progress_event = ProgressEventFactory.scoring_calculation(
+                    vulnerability_count=0, dependency_count=0
+                )
+            elif current_stage == "report_generation":
+                progress_event = ProgressEventFactory.report_generation(security_score=0.0)
+            elif current_stage == "completed":
+                progress_event = ProgressEventFactory.completion(
+                    vulnerability_count=0, security_score=0.0, analysis_duration=0.0
+                )
+            
+            # Send structured progress event if available, otherwise fall back to simple message
+            if progress_event:
+                asyncio.create_task(
+                    websocket_manager.send_progress_event(job_id, progress_event)
+                )
+            else:
+                # Fall back to simple progress update
+                if progress_percentage == 0:
+                    status = "pending"
+                elif progress_percentage == 100:
+                    status = "completed"
+                else:
+                    status = "in_progress"
+                
+                asyncio.create_task(
+                    websocket_manager.send_immediate_progress(
+                        job_id=job_id,
+                        status=status,
+                        progress=progress_percentage,
+                        message=stage_message,
+                        stage=current_stage
+                    )
+                )
+            
+        except Exception as e:
+            logger.warning(f"Failed to send WebSocket progress for job {job_id}: {e}")
+            # Don't fail the job if WebSocket update fails
     
     def start_job_processing(self, job_id: str, worker_id: str) -> bool:
         """

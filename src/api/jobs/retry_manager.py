@@ -14,7 +14,7 @@ import traceback
 import time
 
 from celery.exceptions import Retry, WorkerLostError
-from ..utils.exceptions import AnalysisError, JobStorageError, JobNotFoundError
+from ..utils.exceptions import AnalysisError, JobNotFoundError
 from ..config import RedisManager
 
 logger = logging.getLogger(__name__)

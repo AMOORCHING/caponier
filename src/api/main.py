@@ -1,6 +1,7 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Request
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Request, WebSocket
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional
 from datetime import datetime, timedelta
 import uuid
 import logging
@@ -961,6 +962,104 @@ async def get_worker_pool_status():
             detail=f"Failed to get worker pool status: {str(e)}"
         )
 
-# TODO: Add WebSocket endpoint for real-time progress updates (task 6.0)
+# WebSocket endpoint for real-time progress updates
+@app.websocket("/ws/progress/{job_id}")
+async def websocket_progress(
+    websocket: WebSocket, 
+    job_id: str,
+    token: Optional[str] = None
+):
+    """
+    WebSocket endpoint for real-time progress updates during analysis.
+    
+    Args:
+        websocket: The WebSocket connection
+        job_id: The job ID to track progress for
+        token: Optional access token for authentication
+        
+    This endpoint allows clients to receive real-time progress updates
+    during repository security analysis without polling the REST API.
+    
+    Authentication:
+    - Job ID validation and format checking
+    - Origin validation for CORS security
+    - Rate limiting and connection limits
+    - Optional token-based authentication
+    """
+    try:
+        # Authenticate the WebSocket connection
+        from .websocket.auth import authenticate_websocket_connection, auth_manager
+        
+        is_authenticated, error_message = await authenticate_websocket_connection(
+            websocket, job_id, token
+        )
+        
+        if not is_authenticated:
+            await websocket.close(code=4003, reason=error_message)
+            return
+        
+        # Handle the WebSocket connection
+        from .websocket.progress import handle_websocket_connection
+        await handle_websocket_connection(websocket, job_id)
+        
+    except Exception as e:
+        logger.error(f"WebSocket error for job {job_id}: {e}")
+        try:
+            await websocket.close(code=1011, reason="Internal server error")
+        except:
+            pass
+    finally:
+        # Record disconnection
+        try:
+            from .websocket.auth import auth_manager
+            client_ip = websocket.client.host if websocket.client else "unknown"
+            auth_manager.record_disconnection(job_id, client_ip)
+        except:
+            pass
+
+@app.post("/websocket/token/{job_id}")
+async def generate_websocket_token(job_id: str, request: Request):
+    """
+    Generate an access token for WebSocket connection.
+    
+    Args:
+        job_id: The job ID to generate token for
+        request: FastAPI request object
+        
+    Returns:
+        Access token for WebSocket authentication
+    """
+    try:
+        from .websocket.auth import auth_manager
+        
+        # Get client IP
+        client_ip = request.client.host if request.client else "unknown"
+        
+        # Validate job ID format
+        is_valid, error_msg = auth_manager.validate_job_id(job_id)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error_msg)
+        
+        # Check if job exists
+        job_status = await job_manager.get_job_status(job_id)
+        if not job_status:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        # Generate access token
+        token = auth_manager.generate_access_token(job_id, client_ip)
+        
+        return {
+            "token": token,
+            "job_id": job_id,
+            "expires_in": auth_manager.token_expiry_hours * 3600,
+            "websocket_url": f"/ws/progress/{job_id}?token={token}"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating WebSocket token for job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate access token")
+
 # TODO: Add result sharing endpoints (task 8.0)
 # TODO: Add security badge generation endpoints (task 8.0)
