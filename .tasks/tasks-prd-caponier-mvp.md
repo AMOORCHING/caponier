@@ -113,14 +113,14 @@ Based on PRD: `prd-caponier-mvp.md`
   - [x] 7.7 Implement loading states and error handling throughout the application
   - [x] 7.8 Add social sharing buttons with pre-populated text for results
 
-- [ ] 8.0 Integrate Results Display, Sharing, and Export Functionality
-  - [ ] 8.1 Design and implement vulnerability details display with CVE links
-  - [ ] 8.2 Create shareable URLs for analysis results with 24-hour persistence
-  - [ ] 8.3 Add social media sharing integration (Twitter, LinkedIn) with key findings
-  - [ ] 8.4 Implement JSON export functionality for programmatic access
-  - [ ] 8.5 Create embeddable security badge widget with HTML/markdown snippets
-  - [ ] 8.6 Add copy-to-clipboard functionality for sharing URLs and badges
-  - [ ] 8.7 Implement analysis result caching to improve performance for shared links
+- [x] 8.0 Integrate Results Display, Sharing, and Export Functionality
+  - [x] 8.1 Design and implement vulnerability details display with CVE links
+  - [x] 8.2 Create shareable URLs for analysis results with 24-hour persistence
+  - [x] 8.3 Add social media sharing integration (Twitter, LinkedIn) with key findings
+  - [x] 8.4 Implement JSON export functionality for programmatic access
+  - [x] 8.5 Create embeddable security badge widget with HTML/markdown snippets
+  - [x] 8.6 Add copy-to-clipboard functionality for sharing URLs and badges
+  - [x] 8.7 Implement analysis result caching to improve performance for shared links
 
 - [ ] 9.0 Update Deployment Configuration for Production Readiness
   - [ ] 9.1 Add Redis deployment configuration to Helm chart
@@ -157,6 +157,10 @@ Based on PRD: `prd-caponier-mvp.md`
 - `src/frontend/src/hooks/useWebSocket.ts` - Custom hook for real-time WebSocket integration
 - `src/frontend/src/lib/api.ts` - API client for backend communication
 - `src/frontend/src/lib/utils.ts` - Utility functions for formatting and validation
+- `src/frontend/src/lib/sharing.ts` - Sharing utilities for social media and URL generation
+- `src/frontend/src/lib/export.ts` - Export utilities for JSON, CSV, and markdown reports
+- `src/frontend/src/components/VulnerabilityDetails.tsx` - Detailed vulnerability display with CVE links
+- `src/frontend/src/components/SecurityBadge.tsx` - Embeddable security badge widget
 - `requirements.txt` - Python dependencies with version constraints and pydantic-settings
 - `requirements-dev.txt` - Development dependencies for testing and code quality
 - `Dockerfile.api` - Docker configuration for API service deployment
