@@ -103,15 +103,15 @@ Based on PRD: `prd-caponier-mvp.md`
   - [x] 6.6 Ensure progress updates are delivered within 2 seconds of status changes
   - [x] 6.7 Add WebSocket authentication and job ID validation
 
-- [ ] 7.0 Build Frontend Single-Page Application with Next.js
-  - [ ] 7.1 Initialize Next.js project with TypeScript and Tailwind CSS
-  - [ ] 7.2 Create main analysis page with URL input form and clean, modern design
-  - [ ] 7.3 Implement repository URL validation and error display
-  - [ ] 7.4 Build real-time progress display component with WebSocket integration
-  - [ ] 7.5 Create analysis results display with security score and vulnerability list
-  - [ ] 7.6 Add responsive design for desktop and mobile devices
-  - [ ] 7.7 Implement loading states and error handling throughout the application
-  - [ ] 7.8 Add social sharing buttons with pre-populated text for results
+- [x] 7.0 Build Frontend Single-Page Application with Next.js
+  - [x] 7.1 Initialize Next.js project with TypeScript and Tailwind CSS
+  - [x] 7.2 Create main analysis page with URL input form and clean, modern design
+  - [x] 7.3 Implement repository URL validation and error display
+  - [x] 7.4 Build real-time progress display component with WebSocket integration
+  - [x] 7.5 Create analysis results display with security score and vulnerability list
+  - [x] 7.6 Add responsive design for desktop and mobile devices
+  - [x] 7.7 Implement loading states and error handling throughout the application
+  - [x] 7.8 Add social sharing buttons with pre-populated text for results
 
 - [ ] 8.0 Integrate Results Display, Sharing, and Export Functionality
   - [ ] 8.1 Design and implement vulnerability details display with CVE links
@@ -151,6 +151,12 @@ Based on PRD: `prd-caponier-mvp.md`
 - `src/api/websocket/progress_events.py` - Progress event definitions and factory for structured updates
 - `src/api/websocket/auth.py` - WebSocket authentication and job ID validation system
 - `src/api/jobs/job_manager.py` - Job management with integrated WebSocket progress updates
+- `src/frontend/` - Next.js frontend application with TypeScript and Tailwind CSS
+- `src/frontend/src/app/page.tsx` - Main analysis page with modern UI and form handling
+- `src/frontend/src/components/` - React components for analysis interface
+- `src/frontend/src/hooks/useWebSocket.ts` - Custom hook for real-time WebSocket integration
+- `src/frontend/src/lib/api.ts` - API client for backend communication
+- `src/frontend/src/lib/utils.ts` - Utility functions for formatting and validation
 - `requirements.txt` - Python dependencies with version constraints and pydantic-settings
 - `requirements-dev.txt` - Development dependencies for testing and code quality
 - `Dockerfile.api` - Docker configuration for API service deployment
